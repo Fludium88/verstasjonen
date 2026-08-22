@@ -1,0 +1,6 @@
+{
+  "name": "Værstasjonen",
+  "description": "Privat vær- og astronomioversikt med prognoser, målte observasjoner når de finnes, og sol- og månebaner.",
+  "permissions": [],
+  "capabilities": []
+}

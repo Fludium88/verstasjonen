@@ -1,0 +1,74 @@
+{
+  "name": "Værstasjonen – Digital Værstasjon & Telemetri",
+  "short_name": "Værstasjonen",
+  "description": "Værprognoser, tilgjengelige målinger, historikk, radar, sol og måne samt MET-farevarsler for valgte steder",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "orientation": "any",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "scope": "/",
+  "lang": "nb-NO",
+  "dir": "ltr",
+  "categories": ["weather", "utilities", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Oversikt & Telemetri",
+      "short_name": "Oversikt",
+      "description": "Se oppdaterte værdata og tydelig kilde for ditt valgte sted",
+      "url": "/?tab=dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Værprognose",
+      "short_name": "Prognose",
+      "description": "Se 48t og 10-dagers værvarsel og radar",
+      "url": "/?tab=forecast",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Sol & Måne",
+      "short_name": "Sol/måne",
+      "description": "Sjekk solbue, månefaser og AR himmelbane",
+      "url": "/?tab=astronomy",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Kalibrering & Kilder",
+      "short_name": "Kalibrering",
+      "description": "Sensorkalibrering og sammenligning mot andre kilder",
+      "url": "/?tab=calibration",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Innstillinger & Personvern",
+      "short_name": "Innstillinger",
+      "description": "Frost API, GPS, nettleservarsler og oppdateringsintervall",
+      "url": "/?tab=settings",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
