@@ -26,6 +26,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  // Cloud Run needs a self-contained production server that honours its
+  // injected PORT and HOSTNAME environment variables.
+  output: "standalone",
   // AI Studio serves the Next.js dev server through this app-specific Cloud
   // Run hostname. Next.js otherwise rejects the cross-origin client chunks and
   // HMR endpoint, leaving the server-rendered loading screen unhydrated.
