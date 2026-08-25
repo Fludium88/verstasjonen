@@ -121,6 +121,27 @@ function isLocalRequest(req: NextRequest): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
 
+const BUILT_IN_APP_ORIGINS = ['https://verstasjonen.ai.studio'];
+
+function getConfiguredAppOrigins(): string[] {
+  const configured = (process.env.APP_ALLOWED_ORIGINS || '').split(',');
+  const origins = [...BUILT_IN_APP_ORIGINS, ...configured];
+
+  return origins.flatMap((value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = new URL(trimmed);
+      if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== trimmed) {
+        return [];
+      }
+      return [parsed.origin.toLowerCase()];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /**
  * Validates Origin / Referer for state-changing requests to prevent CSRF
  */
@@ -133,7 +154,10 @@ export function validateCsrfOrigin(req: NextRequest, endpointName: string): { va
   const origin = req.headers.get('origin');
   const referer = req.headers.get('referer');
   const host = req.headers.get('host')?.split(',')[0].trim().toLowerCase();
-  const requestOrigins = new Set([req.nextUrl.origin.toLowerCase()]);
+  const requestOrigins = new Set([
+    req.nextUrl.origin.toLowerCase(),
+    ...getConfiguredAppOrigins(),
+  ]);
   if (host) {
     try {
       // Cloud Run terminates HTTPS before forwarding the request to Node. Use

@@ -34,6 +34,7 @@ export interface WeatherStation {
   altitude: number | null;
   distance_km?: number;
   elements_supported: string[];
+  frost_element_ids?: string[];
   last_observed_at?: string | null;
   quality_rating?: number;
   source_type?: string;

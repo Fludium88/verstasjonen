@@ -124,6 +124,29 @@ describe('Cybersecurity & Access Control Tests', () => {
     });
     expect(validateCsrfOrigin(cloudRunSameOrigin, '/api/settings').valid).toBe(true);
 
+    const aiStudioProxy = new NextRequest('http://internal:8080/api/locations', {
+      method: 'POST',
+      headers: {
+        host: 'internal:8080',
+        origin: 'https://verstasjonen.ai.studio',
+        'x-forwarded-proto': 'https',
+        'sec-fetch-site': 'same-origin',
+      },
+    });
+    expect(validateCsrfOrigin(aiStudioProxy, '/api/locations').valid).toBe(true);
+
+    vi.stubEnv('APP_ALLOWED_ORIGINS', 'https://weather-public.example');
+    const configuredProxy = new NextRequest('http://internal:8080/api/locations', {
+      method: 'POST',
+      headers: {
+        host: 'internal:8080',
+        origin: 'https://weather-public.example',
+        'x-forwarded-proto': 'https',
+        'sec-fetch-site': 'same-origin',
+      },
+    });
+    expect(validateCsrfOrigin(configuredProxy, '/api/locations').valid).toBe(true);
+
     const foreignOrigin = new NextRequest('https://weather.example/api/settings', {
       method: 'POST',
       headers: {

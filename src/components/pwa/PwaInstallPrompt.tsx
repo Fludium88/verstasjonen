@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, WifiOff, CheckCircle2, Sparkles } from 'lucide-react';
+import { Download, WifiOff, Sparkles } from 'lucide-react';
 import { usePwaInstall } from '@/lib/pwaInstall';
 import { PwaInstallModal } from './PwaInstallModal';
 
@@ -14,18 +14,16 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
   variant = 'sidebar',
   onInstalled,
 }) => {
-  const { isInstallable, isInstalled, isOffline, triggerInstall, hasNativePrompt } = usePwaInstall();
+  const { isInstallable, isInstalled, isOffline, triggerInstall } = usePwaInstall();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleClick = async () => {
-    if (hasNativePrompt) {
-      const result = await triggerInstall();
-      if (result === 'accepted') {
-        onInstalled?.();
-        return;
-      }
+    const result = await triggerInstall();
+    if (result === 'accepted') {
+      onInstalled?.();
+      return;
     }
-    setIsModalOpen(true);
+    if (result === 'manual_guide') setIsModalOpen(true);
   };
 
   // If already installed, don't show install buttons

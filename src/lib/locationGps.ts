@@ -9,6 +9,8 @@ export const GPS_STORAGE_KEYS = {
   CURRENT_LOC_ID: 'vaerstasjonen_loc_id',
 } as const;
 
+const GPS_PROMPT_VERSION = '2';
+
 /** Legacy ID retained for recognizing locations saved by older builds. */
 export const GPS_LOCATION_ID = 'loc_gps_current';
 export const GPS_LOCATION_ID_PREFIX = 'loc_gps_';
@@ -269,7 +271,7 @@ export function setGpsStartupEnabled(enabled: boolean): void {
 export function hasGpsPromptBeenShown(): boolean {
   if (typeof localStorage === 'undefined') return true;
   try {
-    return localStorage.getItem(GPS_STORAGE_KEYS.PROMPTED) === 'true';
+    return localStorage.getItem(GPS_STORAGE_KEYS.PROMPTED) === GPS_PROMPT_VERSION;
   } catch {
     return true;
   }
@@ -281,7 +283,7 @@ export function hasGpsPromptBeenShown(): boolean {
 export function setGpsPromptShown(shown = true): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(GPS_STORAGE_KEYS.PROMPTED, shown ? 'true' : 'false');
+    localStorage.setItem(GPS_STORAGE_KEYS.PROMPTED, shown ? GPS_PROMPT_VERSION : 'false');
   } catch {
     // ignore
   }

@@ -62,7 +62,7 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
 
   useEffect(() => {
     setData(null);
-    void fetchStations();
+    void fetchStations(true);
     return () => {
       requestAbortRef.current?.abort();
       mappingAbortRef.current?.abort();

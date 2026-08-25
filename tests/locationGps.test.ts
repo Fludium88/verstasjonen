@@ -52,6 +52,10 @@ describe('GPS Location Management & Foreground Safety', () => {
 
     setGpsPromptShown(true);
     expect(hasGpsPromptBeenShown()).toBe(true);
+    expect(localStorage.setItem).toHaveBeenCalledWith(GPS_STORAGE_KEYS.PROMPTED, '2');
+
+    localStorageMock[GPS_STORAGE_KEYS.PROMPTED] = 'true';
+    expect(hasGpsPromptBeenShown()).toBe(false);
   });
 
   it('uses one stable GPS location ID per browser device', () => {

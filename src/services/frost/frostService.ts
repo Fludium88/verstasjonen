@@ -23,6 +23,56 @@ function hasAcceptableQuality(observation: unknown): observation is Record<strin
   return Number.isInteger(quality) && quality >= 0 && quality <= 4;
 }
 
+type FrostCapability =
+  | 'air_temperature'
+  | 'precipitation_amount'
+  | 'wind_speed'
+  | 'wind_speed_of_gust'
+  | 'wind_from_direction'
+  | 'relative_humidity'
+  | 'air_pressure_at_sea_level'
+  | 'surface_snow_thickness';
+
+const FROST_ELEMENT_PREFERENCES: Record<FrostCapability, string[]> = {
+  air_temperature: ['air_temperature', 'mean(air_temperature PT1H)'],
+  precipitation_amount: [
+    'sum(precipitation_amount PT1H)',
+    'precipitation_amount',
+    'sum(precipitation_amount P1D)',
+  ],
+  wind_speed: ['wind_speed', 'mean(wind_speed PT1H)'],
+  wind_speed_of_gust: [
+    'max(wind_speed_of_gust PT10M)',
+    'max(wind_speed_of_gust PT1H)',
+    'wind_speed_of_gust',
+  ],
+  wind_from_direction: ['wind_from_direction'],
+  relative_humidity: ['relative_humidity', 'mean(relative_humidity PT1H)'],
+  air_pressure_at_sea_level: [
+    'air_pressure_at_sea_level',
+    'mean(air_pressure_at_sea_level PT1H)',
+    'air_pressure_at_sea_level_qnh',
+    'mean(air_pressure_at_sea_level_qnh PT1H)',
+    'surface_air_pressure',
+    'mean(surface_air_pressure PT1H)',
+  ],
+  surface_snow_thickness: ['surface_snow_thickness'],
+};
+
+export function preferredFrostElementId(
+  elementIds: Iterable<string>,
+  capability: FrostCapability
+): string | undefined {
+  const available = new Set(elementIds);
+  return FROST_ELEMENT_PREFERENCES[capability].find((elementId) => available.has(elementId));
+}
+
+export function classifyFrostElementIds(elementIds: Iterable<string>): string[] {
+  return (Object.keys(FROST_ELEMENT_PREFERENCES) as FrostCapability[]).filter((capability) =>
+    Boolean(preferredFrostElementId(elementIds, capability))
+  );
+}
+
 async function fetchFrostPages(
   initialUrl: string,
   authHeader: string,
@@ -123,7 +173,7 @@ export class FrostService {
     if (!clientId) return [];
 
     const authHeader = `Basic ${Buffer.from(`${clientId}:`).toString('base64')}`;
-    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?geometry=nearest(POINT(${location.longitude}%20${location.latitude}))&validtime=now&nearestmaxcount=50`;
+    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?geometry=nearest(POINT(${location.longitude}%20${location.latitude}))&validtime=now&nearestmaxcount=100`;
 
     try {
       const res = await fetch(url, {
@@ -153,30 +203,27 @@ export class FrostService {
       const stationCapabilities = new Map<string, Set<string>>();
       try {
         const tsUrl = `${WEATHER_CONFIG.frost.baseUrl}/observations/availableTimeSeries/v0.jsonld?sources=${stationIds.join(',')}`;
-        const tsRes = await fetch(tsUrl, {
-          headers: {
-            Authorization: authHeader,
-            'User-Agent': WEATHER_CONFIG.defaultUserAgent,
-          },
-          signal: AbortSignal.timeout(12000),
-        });
+        const tsResult = await fetchFrostPages(tsUrl, authHeader, 15000);
 
-        if (tsRes.ok) {
-          const tsJson = await tsRes.json();
+        if (tsResult.status === 200) {
           const nowIso = new Date().toISOString();
-          for (const ts of tsJson.data || []) {
-            if (!ts.validTo || ts.validTo >= nowIso) {
-              const stId = ts.sourceId.split(':')[0];
+          for (const value of tsResult.data) {
+            if (!isRecord(value)) continue;
+            const sourceId = typeof value.sourceId === 'string' ? value.sourceId : '';
+            const elementId = typeof value.elementId === 'string' ? value.elementId : '';
+            const validTo = typeof value.validTo === 'string' ? value.validTo : null;
+            if (sourceId && elementId && (!validTo || validTo >= nowIso)) {
+              const stId = sourceId.split(':')[0];
               if (!stationCapabilities.has(stId)) {
                 stationCapabilities.set(stId, new Set());
               }
-              stationCapabilities.get(stId)!.add(ts.elementId);
+              stationCapabilities.get(stId)!.add(elementId);
             }
           }
-        } else if (tsRes.status === 401) {
+        } else if (tsResult.status === 401) {
           return [];
         }
-      } catch (tsErr) {
+      } catch {
         // Continue with defaults
       }
 
@@ -185,34 +232,7 @@ export class FrostService {
 
       for (const item of dataItems) {
         const caps = stationCapabilities.get(item.id) || new Set<string>();
-        const elementsSupported: string[] = [];
-
-        if (caps.has('air_temperature')) elementsSupported.push('air_temperature');
-        if (
-          caps.has('sum(precipitation_amount PT1H)') ||
-          caps.has('sum(precipitation_amount P1D)') ||
-          caps.has('precipitation_amount')
-        ) {
-          elementsSupported.push('precipitation_amount');
-        }
-        if (caps.has('wind_speed')) elementsSupported.push('wind_speed');
-        if (
-          caps.has('max(wind_speed_of_gust PT10M)') ||
-          caps.has('max(wind_speed_of_gust PT1H)') ||
-          caps.has('wind_speed_of_gust')
-        ) {
-          elementsSupported.push('wind_speed_of_gust');
-        }
-        if (caps.has('wind_from_direction')) elementsSupported.push('wind_from_direction');
-        if (caps.has('relative_humidity')) elementsSupported.push('relative_humidity');
-        if (
-          caps.has('air_pressure_at_sea_level') ||
-          caps.has('air_pressure_at_sea_level_qnh') ||
-          caps.has('surface_air_pressure')
-        ) {
-          elementsSupported.push('air_pressure_at_sea_level');
-        }
-        if (caps.has('surface_snow_thickness')) elementsSupported.push('surface_snow_thickness');
+        const elementsSupported = classifyFrostElementIds(caps);
 
         const stationLatitude = Number(item.geometry?.coordinates?.[1]);
         const stationLongitude = Number(item.geometry?.coordinates?.[0]);
@@ -235,6 +255,7 @@ export class FrostService {
             ) * 10
           ) / 10,
           elements_supported: elementsSupported,
+          frost_element_ids: [...caps],
           source_type: 'FROST',
         };
 
@@ -358,24 +379,28 @@ export class FrostService {
       // Determine exact elements to query for this specific station
       const elementsToFetch: string[] = [];
       const supported = new Set(st.elements_supported || []);
+      const exactFrostElements = st.frost_element_ids?.length
+        ? st.frost_element_ids
+        : [...supported].flatMap((capability) =>
+            capability in FROST_ELEMENT_PREFERENCES
+              ? [FROST_ELEMENT_PREFERENCES[capability as FrostCapability][0]]
+              : []
+          );
       const assigned = stationElements.get(st.id) || new Set<string>();
 
-      if (assigned.has('temperature') && supported.has('air_temperature')) elementsToFetch.push('air_temperature');
-      if (assigned.has('humidity') && supported.has('relative_humidity')) elementsToFetch.push('relative_humidity');
-      if (assigned.has('precipitation') && supported.has('precipitation_amount')) {
-        elementsToFetch.push('sum(precipitation_amount PT1H)');
-      }
-      if (assigned.has('wind') && supported.has('wind_speed')) elementsToFetch.push('wind_speed');
-      if (assigned.has('wind') && supported.has('wind_speed_of_gust')) {
-        elementsToFetch.push('max(wind_speed_of_gust PT10M)');
-      }
-      if (assigned.has('wind') && supported.has('wind_from_direction')) elementsToFetch.push('wind_from_direction');
-      if (assigned.has('pressure') && supported.has('air_pressure_at_sea_level')) {
-        elementsToFetch.push('air_pressure_at_sea_level');
-      }
-      if (assigned.has('snow') && supported.has('surface_snow_thickness')) {
-        elementsToFetch.push('surface_snow_thickness');
-      }
+      const addPreferred = (assignedElement: string, capability: FrostCapability) => {
+        if (!assigned.has(assignedElement) || !supported.has(capability)) return;
+        const exact = preferredFrostElementId(exactFrostElements, capability);
+        if (exact) elementsToFetch.push(exact);
+      };
+      addPreferred('temperature', 'air_temperature');
+      addPreferred('humidity', 'relative_humidity');
+      addPreferred('precipitation', 'precipitation_amount');
+      addPreferred('wind', 'wind_speed');
+      addPreferred('wind', 'wind_speed_of_gust');
+      addPreferred('wind', 'wind_from_direction');
+      addPreferred('pressure', 'air_pressure_at_sea_level');
+      addPreferred('snow', 'surface_snow_thickness');
 
       if (elementsToFetch.length === 0) continue;
 
@@ -441,41 +466,35 @@ export class FrostService {
                   if (obs.qualityCode !== undefined && obs.qualityCode !== null) {
                     current.quality_code = String(obs.qualityCode);
                   }
-                  if (elementId === 'air_temperature' && current.air_temperature === null) {
+                  if (classifyFrostElementIds([elementId]).includes('air_temperature') && current.air_temperature === null) {
                     current.air_temperature = obs.value;
                     current.element_sources!.air_temperature = st.id;
                   }
-                  if (elementId === 'relative_humidity' && current.relative_humidity === null) {
+                  if (classifyFrostElementIds([elementId]).includes('relative_humidity') && current.relative_humidity === null) {
                     current.relative_humidity = obs.value;
                     current.element_sources!.relative_humidity = st.id;
                   }
                   if (
-                    (elementId === 'air_pressure_at_sea_level' ||
-                      elementId === 'air_pressure_at_sea_level_qnh' ||
-                      elementId === 'surface_air_pressure') &&
+                    classifyFrostElementIds([elementId]).includes('air_pressure_at_sea_level') &&
                     current.air_pressure === null
                   ) {
                     current.air_pressure = obs.value;
                     current.element_sources!.air_pressure = st.id;
                   }
                   if (
-                    (elementId === 'sum(precipitation_amount PT1H)' ||
-                      elementId === 'sum(precipitation_amount P1D)' ||
-                      elementId === 'precipitation_amount') &&
+                    classifyFrostElementIds([elementId]).includes('precipitation_amount') &&
                     current.precipitation_amount === null
                   ) {
                     // Precipitation is physically strictly non-negative (clamp sensor noise/tare errors)
                     current.precipitation_amount = Math.max(0, obs.value);
                     current.element_sources!.precipitation_amount = st.id;
                   }
-                  if (elementId === 'wind_speed' && current.wind_speed === null) {
+                  if (classifyFrostElementIds([elementId]).includes('wind_speed') && current.wind_speed === null) {
                     current.wind_speed = obs.value;
                     current.element_sources!.wind_speed = st.id;
                   }
                   if (
-                    (elementId === 'max(wind_speed_of_gust PT10M)' ||
-                      elementId === 'max(wind_speed_of_gust PT1H)' ||
-                      elementId === 'wind_speed_of_gust') &&
+                    classifyFrostElementIds([elementId]).includes('wind_speed_of_gust') &&
                     current.wind_gust === null
                   ) {
                     current.wind_gust = obs.value;
@@ -593,23 +612,23 @@ export class FrostService {
                 if (obs.qualityCode !== undefined && obs.qualityCode !== null) {
                   current.quality_code = String(obs.qualityCode);
                 }
-                if (elementId === 'air_temperature') {
+                if (classifyFrostElementIds([elementId]).includes('air_temperature')) {
                   current.air_temperature = obs.value;
                   current.element_sources!.air_temperature = stationId;
                 }
-                if (elementId === 'relative_humidity') {
+                if (classifyFrostElementIds([elementId]).includes('relative_humidity')) {
                   current.relative_humidity = obs.value;
                   current.element_sources!.relative_humidity = stationId;
                 }
-                if (elementId.includes('precipitation')) {
+                if (classifyFrostElementIds([elementId]).includes('precipitation_amount')) {
                   current.precipitation_amount = Math.max(0, obs.value);
                   current.element_sources!.precipitation_amount = stationId;
                 }
-                if (elementId === 'wind_speed') {
+                if (classifyFrostElementIds([elementId]).includes('wind_speed')) {
                   current.wind_speed = obs.value;
                   current.element_sources!.wind_speed = stationId;
                 }
-                if (elementId.includes('gust')) {
+                if (classifyFrostElementIds([elementId]).includes('wind_speed_of_gust')) {
                   current.wind_gust = obs.value;
                   current.element_sources!.wind_gust = stationId;
                 }
@@ -617,7 +636,7 @@ export class FrostService {
                   current.wind_direction = obs.value;
                   current.element_sources!.wind_direction = stationId;
                 }
-                if (elementId.includes('pressure')) {
+                if (classifyFrostElementIds([elementId]).includes('air_pressure_at_sea_level')) {
                   current.air_pressure = obs.value;
                   current.element_sources!.air_pressure = stationId;
                 }
