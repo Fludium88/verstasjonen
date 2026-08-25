@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, MapPin, Search, Navigation, Check, Trash2, Radio, ShieldCheck } from 'lucide-react';
+import { X, Plus, MapPin, Search, Navigation, Check, Trash2, Radio } from 'lucide-react';
 import { LocationRecord } from '@/types/weather';
 import {
   getCurrentGpsPosition,
@@ -100,6 +100,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({
       setIsSearching(false);
       return;
     }
+    setSearchResults([]);
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
@@ -109,11 +110,12 @@ export const LocationModal: React.FC<LocationModalProps> = ({
           cache: 'no-store',
           signal: controller.signal,
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (!controller.signal.aborted && searchAbortRef.current === controller) {
-            setSearchResults(Array.isArray(data) ? data : []);
-          }
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || 'Stedsøket svarte med en feil.');
+        }
+        if (!controller.signal.aborted && searchAbortRef.current === controller) {
+          setSearchResults(Array.isArray(data) ? data : []);
         }
       } catch (e) {
         if (controller.signal.aborted) return;
@@ -479,6 +481,17 @@ export const LocationModal: React.FC<LocationModalProps> = ({
                   />
                 </div>
 
+                {isSearching && (
+                  <p role="status" className="mt-2 text-[11px] text-sky-300">
+                    Søker etter steder…
+                  </p>
+                )}
+                {!isSearching && searchQuery.trim().length >= 3 && searchResults.length === 0 && !createError && (
+                  <p role="status" className="mt-2 text-[11px] text-slate-400">
+                    Ingen treff. Prøv et mer presist stedsnavn eller skriv inn koordinatene manuelt.
+                  </p>
+                )}
+
                 {searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-700/50">
                     {searchResults.map((item, idx) => (
@@ -598,6 +611,19 @@ export const LocationModal: React.FC<LocationModalProps> = ({
               </div>
             </form>
           )}
+
+          <p className="text-center text-[10px] leading-relaxed text-slate-500">
+            Stedssøk leveres av{' '}
+            <a
+              href="https://open-meteo.com/en/docs/geocoding-api"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-slate-600 underline-offset-2 hover:text-slate-300"
+            >
+              Open-Meteo / GeoNames
+            </a>
+            . GPS-adresser kan bruke © OpenStreetMap-bidragsytere.
+          </p>
         </div>
       </div>
     </div>

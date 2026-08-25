@@ -5,7 +5,6 @@ import {
   createAccessSessionToken,
   validateCoordinates,
   validateCalibrationOffsets,
-  validateCronSecret,
   validateCsrfOrigin,
   validateAccessSession,
   validateAppAccessToken,
@@ -117,6 +116,17 @@ describe('Cybersecurity & Access Control Tests', () => {
     });
     expect(validateCsrfOrigin(sameOrigin, '/api/settings').valid).toBe(true);
 
+    const cloudRunSameOrigin = new NextRequest('http://internal:8080/api/settings', {
+      method: 'POST',
+      headers: {
+        host: 'weather.example',
+        origin: 'https://weather.example',
+        'x-forwarded-proto': 'https',
+        'sec-fetch-site': 'same-origin',
+      },
+    });
+    expect(validateCsrfOrigin(cloudRunSameOrigin, '/api/settings').valid).toBe(true);
+
     const foreignOrigin = new NextRequest('https://weather.example/api/settings', {
       method: 'POST',
       headers: {
@@ -151,24 +161,6 @@ describe('Cybersecurity & Access Control Tests', () => {
       },
     });
     expect(validateCsrfOrigin(wrongScheme, '/api/settings').valid).toBe(false);
-  });
-
-  it('fails cron closed in production when CRON_SECRET is missing', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('CRON_SECRET', '');
-    const request = new NextRequest('https://weather.example/api/cron/ingest', {
-      headers: { host: 'weather.example' },
-    });
-    expect(validateCronSecret(request).authorized).toBe(false);
-  });
-
-  it('rejects an insecurely short CRON_SECRET in production', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('CRON_SECRET', 'short');
-    const request = new NextRequest('https://weather.example/api/cron/ingest', {
-      headers: { authorization: 'Bearer short' },
-    });
-    expect(validateCronSecret(request).authorized).toBe(false);
   });
 
   it('uses a derived fixed-length session instead of storing the access token', () => {

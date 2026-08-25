@@ -167,76 +167,6 @@ function isLocalRequest(req: NextRequest): boolean {
 }
 
 /**
- * Validates CRON execution secret against environment CRON_SECRET
- */
-export function validateCronSecret(req: NextRequest, endpointName: string = 'cron'): { authorized: boolean; reason?: string } {
-  const configuredSecret = process.env.CRON_SECRET?.trim();
-  const authHeader = req.headers.get('authorization') || '';
-  const xCronHeader = req.headers.get('x-cron-secret') || '';
-  const clientIp = getAnonymizedClientIp(req);
-
-  let providedToken = '';
-  if (authHeader.toLowerCase().startsWith('bearer ')) {
-    providedToken = authHeader.slice(7).trim();
-  } else if (xCronHeader) {
-    providedToken = xCronHeader.trim();
-  }
-
-  if (
-    process.env.NODE_ENV === 'production' &&
-    configuredSecret &&
-    configuredSecret.length < 16
-  ) {
-    logSecurityEvent({
-      type: 'CRON_AUTH_FAILURE',
-      endpoint: endpointName,
-      ipMasked: clientIp,
-      details: 'Cron-jobb avvist fordi CRON_SECRET er kortere enn 16 tegn',
-      severity: 'error',
-    });
-    return { authorized: false, reason: 'CRON_SECRET is configured insecurely' };
-  }
-
-  // If CRON_SECRET is configured in environment, enforce strict match
-  if (configuredSecret && configuredSecret.length > 0) {
-    if (!providedToken || !safeEqual(providedToken, configuredSecret)) {
-      logSecurityEvent({
-        type: 'CRON_AUTH_FAILURE',
-        endpoint: endpointName,
-        ipMasked: clientIp,
-        details: 'Uautorisert forsøk på å kjøre cron-jobb (ugyldig eller manglende CRON_SECRET)',
-        severity: 'warn',
-      });
-      return { authorized: false, reason: 'Unauthorized: Invalid or missing CRON_SECRET token' };
-    }
-
-    logSecurityEvent({
-      type: 'CRON_AUTH_SUCCESS',
-      endpoint: endpointName,
-      ipMasked: clientIp,
-      details: 'Cron-jobb autentisert med gyldig hemmelig nøkkel',
-      severity: 'info',
-    });
-    return { authorized: true };
-  }
-
-  // Local development stays convenient. Any production/remote deployment is
-  // fail-closed when CRON_SECRET has not been configured.
-  if (process.env.NODE_ENV !== 'production' && isLocalRequest(req)) {
-    return { authorized: true };
-  }
-
-  logSecurityEvent({
-    type: 'CRON_AUTH_FAILURE',
-    endpoint: endpointName,
-    ipMasked: clientIp,
-    details: 'Cron-jobb avvist fordi CRON_SECRET ikke er konfigurert',
-    severity: 'error',
-  });
-  return { authorized: false, reason: 'CRON_SECRET is not configured' };
-}
-
-/**
  * Validates Origin / Referer for state-changing requests to prevent CSRF
  */
 export function validateCsrfOrigin(req: NextRequest, endpointName: string): { valid: boolean; reason?: string } {
@@ -251,7 +181,19 @@ export function validateCsrfOrigin(req: NextRequest, endpointName: string): { va
   const requestOrigins = new Set([req.nextUrl.origin.toLowerCase()]);
   if (host) {
     try {
-      requestOrigins.add(new URL(`${req.nextUrl.protocol}//${host}`).origin.toLowerCase());
+      // Cloud Run terminates HTTPS before forwarding the request to Node. Use
+      // its forwarded protocol with the actual Host header so same-origin
+      // mutations are not rejected merely because the internal hop is HTTP.
+      const forwardedProtocol = req.headers
+        .get('x-forwarded-proto')
+        ?.split(',')[0]
+        .trim()
+        .toLowerCase();
+      const protocol =
+        forwardedProtocol === 'http' || forwardedProtocol === 'https'
+          ? `${forwardedProtocol}:`
+          : req.nextUrl.protocol;
+      requestOrigins.add(new URL(`${protocol}//${host}`).origin.toLowerCase());
     } catch {
       // Ignore an invalid Host header; the framework-derived origin remains.
     }
@@ -293,19 +235,7 @@ export function validateCsrfOrigin(req: NextRequest, endpointName: string): { va
     }
 
     const sourceOrigin = sourceUrl.origin.toLowerCase();
-    const allowedOrigins = (process.env.APP_ALLOWED_ORIGINS || '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .some((value) => {
-        try {
-          return new URL(value).origin === sourceUrl.origin;
-        } catch {
-          return false;
-        }
-      });
-
-    if (requestOrigins.has(sourceOrigin) || allowedOrigins) {
+    if (requestOrigins.has(sourceOrigin)) {
       return { valid: true };
     }
 

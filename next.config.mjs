@@ -8,7 +8,9 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "frame-ancestors 'none'",
+  // AI Studio renders its preview in a cross-origin frame. Keep framing
+  // limited to the app itself and Google's known preview surfaces.
+  "frame-ancestors 'self' https://aistudio.google.com https://*.ai.studio https://*.googleusercontent.com",
   "form-action 'self'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
@@ -57,15 +59,7 @@ const nextConfig = {
             value: "nosniff",
           },
           {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-          {
             key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
-          },
-          {
-            key: "Cross-Origin-Resource-Policy",
             value: "same-origin",
           },
           {

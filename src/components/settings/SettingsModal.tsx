@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   X,
   Key,
-  RefreshCw,
   CheckCircle,
   AlertTriangle,
   ExternalLink,
@@ -48,14 +48,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onNavigateToCalibration,
   onLocationSelected,
 }) => {
+  const router = useRouter();
   const { isInstalled } = usePwaInstall();
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [frostClientId, setFrostClientId] = useState('');
-  const [hasKey, setHasKey] = useState(false);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60);
   const [gpsStartup, setGpsStartup] = useState<boolean>(false);
   const [isGpsLocating, setIsGpsLocating] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [accessRequired, setAccessRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<StatusFeedback | null>(null);
   const gpsOperationRef = useRef(0);
@@ -65,6 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const controller = new AbortController();
     if (isOpen) {
       fetchSettings(controller.signal);
+      fetchAccessStatus(controller.signal);
       const savedInterval = localStorage.getItem('vaerstasjonen_autorefresh_mins');
       if (savedInterval !== null) {
         setAutoRefreshInterval(parseInt(savedInterval, 10));
@@ -82,12 +84,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const res = await fetch('/api/settings', { signal });
       if (res.ok) {
         const data = await res.json();
-        setHasKey(data.has_frost_key);
         setFrostClientId(data.frost_client_id || '');
       }
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
         console.error(e);
+      }
+    }
+  };
+
+  const fetchAccessStatus = async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch('/api/auth', { cache: 'no-store', signal });
+      if (!res.ok) return;
+      const data = await res.json();
+      setAccessRequired(data.accessRequired === true);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        console.warn('Kunne ikke lese tilgangsstatus:', error);
       }
     }
   };
@@ -215,7 +229,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (!response.ok) {
         throw new Error('Kunne ikke fjerne tilgangscookien.');
       }
-      window.location.assign('/access');
+      router.replace('/access');
+      router.refresh();
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -316,6 +331,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* GPS Section */}
+          {accessRequired && (
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-200 text-xs font-semibold">
@@ -349,6 +365,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
           </div>
+          )}
 
           {/* Autorefresh Setting */}
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-2.5">

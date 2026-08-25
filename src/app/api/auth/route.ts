@@ -17,14 +17,19 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const session = req.cookies.get(ACCESS_COOKIE_NAME)?.value || '';
+  const configuredToken = getConfiguredAccessToken();
+  const rawToken = process.env.APP_ACCESS_TOKEN?.trim() || '';
   const localDevelopment =
     process.env.NODE_ENV !== 'production' &&
     ['localhost', '127.0.0.1', '::1'].includes(req.nextUrl.hostname);
 
   return NextResponse.json(
     {
-      configured: Boolean(getConfiguredAccessToken()),
-      authenticated: localDevelopment || validateAccessSession(session),
+      configured: Boolean(configuredToken),
+      accessRequired: Boolean(configuredToken),
+      misconfigured: rawToken.length > 0 && !configuredToken,
+      authenticated:
+        !rawToken || localDevelopment || validateAccessSession(session),
       localDevelopment,
     },
     { headers: { 'Cache-Control': 'no-store' } }

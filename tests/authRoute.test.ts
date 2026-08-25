@@ -1,12 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST } from '../src/app/api/auth/route';
+import { GET, POST } from '../src/app/api/auth/route';
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 describe('personal access login route', () => {
+  it('reports an open production deployment as authenticated when no token is configured', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_ACCESS_TOKEN', '');
+    const response = await GET(
+      new NextRequest('https://weather.example/api/auth')
+    );
+    const body = await response.json();
+    expect(body.accessRequired).toBe(false);
+    expect(body.authenticated).toBe(true);
+    expect(body.misconfigured).toBe(false);
+  });
+
   it('sets a secure HttpOnly SameSite cookie after a valid login', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('APP_ACCESS_TOKEN', 'a-strong-personal-token');
@@ -51,4 +63,3 @@ describe('personal access login route', () => {
     expect(response.status).toBe(403);
   });
 });
-

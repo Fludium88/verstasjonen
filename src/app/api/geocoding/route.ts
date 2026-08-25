@@ -145,56 +145,57 @@ export async function GET(req: NextRequest) {
       loc.address.toLowerCase().includes(q.toLowerCase())
   );
 
-  // 4. Also fetch from OpenStreetMap Nominatim for wide coverage across Norway
+  // 4. Use Open-Meteo's GeoNames-backed search for deploy-friendly place lookup.
+  // Reverse geocoding above remains an explicit, low-frequency GPS action.
   try {
     const encoded = encodeURIComponent(q);
-    const url = `https://nominatim.openstreetmap.org/search?q=${encoded}&countrycodes=no&format=json&addressdetails=1&limit=8`;
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}&count=8&language=no&format=json&countryCode=NO`;
     const res = await fetch(url, {
-      headers: {
-        'User-Agent': WEATHER_CONFIG.defaultUserAgent,
-        'Accept-Language': 'nb-NO,no,en',
-      },
       signal: AbortSignal.timeout(3500),
     });
 
     if (res.ok) {
       const externalPayload: unknown = await res.json();
-      const externalData = Array.isArray(externalPayload) ? externalPayload : [];
+      const externalRecord =
+        externalPayload && typeof externalPayload === 'object' && !Array.isArray(externalPayload)
+          ? (externalPayload as Record<string, unknown>)
+          : {};
+      const externalData = Array.isArray(externalRecord.results)
+        ? externalRecord.results
+        : [];
       const mapped = externalData.flatMap((rawItem) => {
         if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) return [];
         const item = rawItem as Record<string, unknown>;
-        const coordinateCheck = validateCoordinates(item.lat, item.lon);
+        const coordinateCheck = validateCoordinates(item.latitude, item.longitude);
         if (!coordinateCheck.valid) return [];
+        if (
+          typeof item.country_code === 'string' &&
+          item.country_code.toUpperCase() !== 'NO'
+        ) return [];
 
-        const address =
-          item.address && typeof item.address === 'object' && !Array.isArray(item.address)
-            ? (item.address as Record<string, unknown>)
-            : {};
-        const firstText = (...values: unknown[]): string => {
-          const match = values.find(
-            (value): value is string => typeof value === 'string' && value.trim().length > 0
-          );
-          return match ? sanitizeString(match, 250) : '';
-        };
-        const fullName = firstText(item.display_name);
-        const shortName = firstText(
-          address.city,
-          address.town,
-          address.village,
-          address.suburb,
-          address.municipality,
-          item.name,
-          fullName.split(',')[0]
-        );
+        const text = (value: unknown): string =>
+          typeof value === 'string' ? sanitizeString(value, 120) : '';
+        const shortName = text(item.name);
         if (!shortName) return [];
+        const addressParts = [
+          text(item.admin2),
+          text(item.admin1),
+          text(item.country),
+        ].filter((part, index, parts) =>
+          Boolean(part) &&
+          part.toLocaleLowerCase('nb-NO') !== shortName.toLocaleLowerCase('nb-NO') &&
+          parts.indexOf(part) === index
+        );
+        const fullName = [shortName, ...addressParts].join(', ');
 
         return [{
           name: shortName,
-          fullName: fullName || shortName,
+          fullName,
           lat: coordinateCheck.latitude!,
           lon: coordinateCheck.longitude!,
           alt: null,
-          address: fullName || shortName,
+          address: fullName,
+          geocoding_source: 'Open-Meteo / GeoNames',
         }];
       });
 

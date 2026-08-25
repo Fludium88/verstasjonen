@@ -51,17 +51,25 @@ function apiError(status: number, error: string): NextResponse {
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (isPublicPath(pathname) || pathname.startsWith('/api/cron/')) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  // Local development is intentionally open. Preview/production deployments,
-  // including mobile test deployments, require the personal access token.
+  // Local development is intentionally open, even if a deployment token has
+  // been configured for a remote environment.
   if (process.env.NODE_ENV !== 'production' && isLocalhost(req)) {
     return NextResponse.next();
   }
 
   const accessToken = process.env.APP_ACCESS_TOKEN?.trim() || '';
+  // AI Studio previews and personal Cloud Run test deployments are open by
+  // default. Defining a valid token opts the deployment into the access gate.
+  if (!accessToken) {
+    return NextResponse.next();
+  }
+
+  // A non-empty but insecure token is almost certainly a configuration error;
+  // never silently turn that into an open deployment.
   if (accessToken.length < 16) {
     if (pathname.startsWith('/api/')) {
       return apiError(503, 'APP_ACCESS_TOKEN er ikke konfigurert sikkert');

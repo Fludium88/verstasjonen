@@ -1,21 +1,49 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSafeLocalReturnPath } from '@/lib/accessPolicy';
 
 export default function AccessPage() {
+  const router = useRouter();
   const [token, setToken] = useState('');
   const [nextPath, setNextPath] = useState('/');
   const [configurationMissing, setConfigurationMissing] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     const params = new URLSearchParams(window.location.search);
     const requestedNext = params.get('next') || '/';
-    setNextPath(getSafeLocalReturnPath(requestedNext, window.location.origin));
+    const safeNextPath = getSafeLocalReturnPath(requestedNext, window.location.origin);
+    setNextPath(safeNextPath);
     setConfigurationMissing(params.get('reason') === 'configuration');
-  }, []);
+
+    void fetch('/api/auth', { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((status) => {
+        if (!status || controller.signal.aborted) return;
+        if (status.misconfigured === true) {
+          setConfigurationMissing(true);
+          return;
+        }
+        if (status.accessRequired !== true) {
+          router.replace(safeNextPath);
+        }
+      })
+      .catch((fetchError) => {
+        if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) {
+          setError('Kunne ikke kontrollere tilgangsoppsettet. Prøv igjen.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCheckingAccess(false);
+      });
+
+    return () => controller.abort();
+  }, [router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,10 +117,10 @@ export default function AccessPage() {
 
           <button
             type="submit"
-            disabled={submitting || token.length < 16 || configurationMissing}
+            disabled={checkingAccess || submitting || token.length < 16 || configurationMissing}
             className="w-full rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? 'Kontrollerer…' : 'Åpne appen'}
+            {checkingAccess ? 'Kontrollerer tilgang…' : submitting ? 'Kontrollerer…' : 'Åpne appen'}
           </button>
         </form>
       </section>

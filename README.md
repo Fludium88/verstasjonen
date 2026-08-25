@@ -42,17 +42,16 @@ FROST_CLIENT_ID=
 # Identifiserbar User-Agent med en reell kontaktadresse du kontrollerer
 MET_USER_AGENT=
 
-# Påkrevd ved ekstern/produksjonslignende testdeploy, minst 16 tegn
+# Valgfri personlig tilgangsport, minst 16 tegn dersom den brukes
 APP_ACCESS_TOKEN=
 
-# Påkrevd bare dersom cron-rutene skal brukes eksternt, minst 16 tegn
-CRON_SECRET=
 ```
 
-Lokal utvikling på `localhost` er åpen. En ekstern deploy feiler lukket dersom
-`APP_ACCESS_TOKEN` mangler eller er for kort. Tilgangskoden lagres ikke i
-nettleserens JavaScript-lagring; innloggingen bruker en avledet, `HttpOnly`
-cookie.
+Lokal utvikling og AI Studio-testdeploy er åpen når `APP_ACCESS_TOKEN` er tom.
+Sett en verdi på minst 16 tegn dersom den eksterne testen skal ha en enkel
+personlig tilgangsport. En ikke-tom, men for kort verdi avvises som en
+konfigurasjonsfeil. Tilgangskoden lagres ikke i nettleserens
+JavaScript-lagring; innloggingen bruker en avledet, `HttpOnly` cookie.
 
 ## Lagring
 
@@ -96,3 +95,14 @@ npm start
 
 API-nøkler og tilgangshemmeligheter brukes kun på serversiden. Ikke legg dem
 inn i klientkode eller variabler med `NEXT_PUBLIC_`-prefiks.
+
+## Google AI Studio / Cloud Run
+
+AI Studio publiserer fullstack-appen som en Cloud Run-tjeneste. Startkommandoen
+lar derfor Next.js lese porten som Cloud Run gir i miljøvariabelen `PORT`.
+`APP_ACCESS_TOKEN` skal være tom dersom testadressen skal være åpen; legg den
+eventuelt inn som en hemmelighet i AI Studio hvis du ønsker tilgangsporten.
+
+Den innebygde AI Studio-forhåndsvisningen kan være en iframe uten delegert
+GPS-tillatelse. Stedsnavnsøk fungerer der, men selve GPS-knappen bør testes ved
+å åpne appen i en egen fane eller på den publiserte HTTPS-adressen.

@@ -83,6 +83,14 @@ function queryPositionOnce(options: PositionOptions): Promise<GpsPositionResult>
   });
 }
 
+function geolocationDeniedMessage(): string {
+  const embedded =
+    typeof window !== 'undefined' && window.top !== null && window.top !== window.self;
+  return embedded
+    ? 'Posisjonstilgang ble blokkert i den innebygde forhåndsvisningen. Åpne appen i en egen fane eller bruk den publiserte adressen, og tillat posisjon der.'
+    : 'Posisjonstilgang ble avslått. Du kan aktivere dette i nettleserens innstillinger.';
+}
+
 /**
  * Retrieves the current GPS position with high responsiveness.
  * Strictly operates in foreground ("kun ved aktiv bruk av appen").
@@ -119,7 +127,7 @@ export async function getCurrentGpsPosition(timeoutMs = 6000): Promise<GpsPositi
   } catch (err: any) {
     // If permission was explicitly denied, fail immediately without retrying
     if (err && err.code === 1) {
-      throw new Error('Posisjonstilgang ble avslått. Du kan aktivere dette i nettleserens innstillinger.');
+      throw new Error(geolocationDeniedMessage());
     }
   }
 
@@ -134,7 +142,7 @@ export async function getCurrentGpsPosition(timeoutMs = 6000): Promise<GpsPositi
   } catch (err: any) {
     let msg = 'GPS-posisjon er for øyeblikket utilgjengelig.';
     if (err && err.code === 1) {
-      msg = 'Posisjonstilgang ble avslått.';
+      msg = geolocationDeniedMessage();
     } else if (err && err.code === 3) {
       msg = 'Posisjoneringen tok for lang tid (tidsavbrudd).';
     }
