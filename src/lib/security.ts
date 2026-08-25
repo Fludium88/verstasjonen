@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { ACCESS_TOKEN_HASH_PREFIX } from './accessPolicy';
-
-export { ACCESS_COOKIE_MAX_AGE_SECONDS, ACCESS_COOKIE_NAME } from './accessPolicy';
 
 export interface SecurityLogEvent {
   id: string;
   timestamp: string;
-  type: 'ACCESS_AUTH_SUCCESS' | 'ACCESS_AUTH_FAILURE' | 'CRON_AUTH_SUCCESS' | 'CRON_AUTH_FAILURE' | 'RATE_LIMIT_EXCEEDED' | 'CSRF_BLOCKED' | 'INVALID_INPUT' | 'SETTINGS_CHANGED' | 'LOCATION_MODIFIED';
+  type: 'CRON_AUTH_SUCCESS' | 'CRON_AUTH_FAILURE' | 'RATE_LIMIT_EXCEEDED' | 'CSRF_BLOCKED' | 'INVALID_INPUT' | 'SETTINGS_CHANGED' | 'LOCATION_MODIFIED';
   endpoint: string;
   ipMasked?: string;
   details: string;
@@ -116,47 +112,6 @@ export function checkRateLimit(
     remaining: limit - record.count,
     reset: Math.ceil(record.resetTime / 1000),
   };
-}
-
-/**
- * Constant-time string equality check to prevent timing attacks
- */
-export function safeEqual(a: string, b: string): boolean {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  // Hash first so timingSafeEqual always receives equal-length buffers and
-  // does not leak the configured secret's length through an early return.
-  const digestA = crypto.createHash('sha256').update(a, 'utf8').digest();
-  const digestB = crypto.createHash('sha256').update(b, 'utf8').digest();
-  return crypto.timingSafeEqual(digestA, digestB);
-}
-
-/**
- * The browser cookie never contains APP_ACCESS_TOKEN itself. It contains a
- * deterministic, fixed-length session proof derived from the configured token.
- */
-export function createAccessSessionToken(accessToken: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(`${ACCESS_TOKEN_HASH_PREFIX}${accessToken}`, 'utf8')
-    .digest('base64url');
-}
-
-export function getConfiguredAccessToken(): string | null {
-  const token = process.env.APP_ACCESS_TOKEN?.trim();
-  return token && token.length >= 16 ? token : null;
-}
-
-export function validateAppAccessToken(providedToken: string): boolean {
-  const configuredToken = getConfiguredAccessToken();
-  return Boolean(configuredToken && safeEqual(providedToken.trim(), configuredToken));
-}
-
-export function validateAccessSession(sessionToken: string): boolean {
-  const configuredToken = getConfiguredAccessToken();
-  return Boolean(
-    configuredToken &&
-      safeEqual(sessionToken, createAccessSessionToken(configuredToken))
-  );
 }
 
 function isLocalRequest(req: NextRequest): boolean {

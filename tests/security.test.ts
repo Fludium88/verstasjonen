@@ -2,12 +2,9 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import {
   checkRateLimit,
-  createAccessSessionToken,
   validateCoordinates,
   validateCalibrationOffsets,
   validateCsrfOrigin,
-  validateAccessSession,
-  validateAppAccessToken,
   maskSecret,
   sanitizeString,
 } from '../src/lib/security';
@@ -163,13 +160,4 @@ describe('Cybersecurity & Access Control Tests', () => {
     expect(validateCsrfOrigin(wrongScheme, '/api/settings').valid).toBe(false);
   });
 
-  it('uses a derived fixed-length session instead of storing the access token', () => {
-    vi.stubEnv('APP_ACCESS_TOKEN', 'a-strong-personal-token');
-    const session = createAccessSessionToken('a-strong-personal-token');
-    expect(session).not.toContain('a-strong-personal-token');
-    expect(validateAppAccessToken('a-strong-personal-token')).toBe(true);
-    expect(validateAppAccessToken('wrong-token-value')).toBe(false);
-    expect(validateAccessSession(session)).toBe(true);
-    expect(validateAccessSession(`${session.slice(0, -1)}x`)).toBe(false);
-  });
 });
