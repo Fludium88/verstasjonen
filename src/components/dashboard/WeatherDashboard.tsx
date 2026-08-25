@@ -229,8 +229,27 @@ export const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
     return getTemperatureDomain(Math.min(...vals), Math.max(...vals), 8);
   }, [hourly_history_24h]);
 
-  // Always render a valid photographic weather illustration, including while current measurements are unavailable.
-  const landscapeImage = '/images/weather-landscapes/weather-situation.png';
+  // Select a photographic weather theme from the current MET symbol, with a safe cloudy fallback.
+  const getLandscapeImage = (symbol?: string | null) => {
+    const normalizedSymbol = (symbol || '').toLowerCase();
+    if (normalizedSymbol.includes('snow')) return '/images/weather-landscapes/snow.png';
+    if (
+      normalizedSymbol.includes('rain') ||
+      normalizedSymbol.includes('sleet') ||
+      normalizedSymbol.includes('drizzle')
+    ) {
+      return '/images/weather-landscapes/rain.png';
+    }
+    if (
+      normalizedSymbol.includes('clearsky') ||
+      normalizedSymbol.includes('fair') ||
+      normalizedSymbol.includes('sun')
+    ) {
+      return '/images/weather-landscapes/sun.png';
+    }
+    return '/images/weather-landscapes/cloudy.png';
+  };
+  const landscapeImage = getLandscapeImage(current.symbol_code);
 
   return (
     <div className="space-y-6 pb-12">
