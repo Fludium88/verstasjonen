@@ -2,6 +2,32 @@ import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import './globals.css';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+const serviceWorkerScript = isProduction
+  ? `
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(function(error) {
+          console.warn('Service worker registration failed:', error);
+        });
+      }
+    `
+  : `
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          registrations.forEach(function(registration) {
+            if (registration.scope.startsWith(window.location.origin)) registration.unregister();
+          });
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          names.filter(function(name) { return name.startsWith('vaerstasjonen-static-'); })
+            .forEach(function(name) { caches.delete(name); });
+        });
+      }
+    `;
+
 export const metadata: Metadata = {
   title: 'Værstasjonen – Digital Værstasjon & Telemetri',
   description:
@@ -57,13 +83,7 @@ export default function RootLayout({
       <body className="bg-[#070b16] text-slate-100 min-h-screen selection:bg-sky-500 selection:text-white antialiased overflow-x-hidden">
         {children}
         <Script id="register-service-worker" strategy="afterInteractive">
-          {`
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.register('/sw.js').catch(function(error) {
-                console.warn('Service worker registration failed:', error);
-              });
-            }
-          `}
+          {serviceWorkerScript}
         </Script>
       </body>
     </html>

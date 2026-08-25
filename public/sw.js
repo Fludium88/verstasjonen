@@ -1,4 +1,4 @@
-const STATIC_CACHE_NAME = 'vaerstasjonen-static-v5';
+const STATIC_CACHE_NAME = 'vaerstasjonen-static-v6';
 
 const STATIC_ASSETS = [
   '/manifest.json',
@@ -52,6 +52,11 @@ self.addEventListener('fetch', (event) => {
 
   if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 
+  // Next.js chunks are content-addressed in production and frequently replaced
+  // by Turbopack during development. Let the browser/network handle them so an
+  // old service worker can never combine modules from different builds.
+  if (url.pathname.startsWith('/_next/')) return;
+
   // Mutations, authentication and live/private API data must always reach the server.
   // Returning an explicit offline error is safer than presenting stale weather as current.
   if (url.pathname.startsWith('/api/')) {
@@ -78,7 +83,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (
-    url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/images/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.endsWith('.svg') ||
