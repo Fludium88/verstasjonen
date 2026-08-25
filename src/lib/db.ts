@@ -443,6 +443,14 @@ class DatabaseEngine {
     this.scheduleSave();
   }
 
+  public clearLocationMeasuredHistory(id: string): void {
+    this.data.observations = this.data.observations.filter((observation) => observation.location_id !== id);
+    this.data.daily_weather_summary = this.data.daily_weather_summary.filter((summary) => summary.location_id !== id);
+    this.data.monthly_weather_summary = this.data.monthly_weather_summary.filter((summary) => summary.location_id !== id);
+    this.rebuildIndices();
+    this.scheduleSave();
+  }
+
   public deleteLocation(id: string): void {
     this.removeLocationOwnedWeatherData(id);
     this.data.locations = this.data.locations.filter((l) => l.id !== id);

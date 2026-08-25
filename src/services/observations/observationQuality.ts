@@ -75,7 +75,7 @@ export function latestMeasuredWithElement<K extends keyof Observation>(
       candidates.push(observation);
     }
   }
-  return candidates[0];
+  return preferredStationId ? undefined : candidates[0];
 }
 
 export function measuredForElement(
@@ -88,12 +88,11 @@ export function measuredForElement(
     return isMeasuredObservation(observation) && typeof value === 'number' && Number.isFinite(value);
   });
   if (!preferredStationId) return candidates;
-  const preferred = candidates.filter(
+  return candidates.filter(
     (observation) =>
       observation.station_id === preferredStationId ||
       observation.element_sources?.[element] === preferredStationId
   );
-  return preferred.length > 0 ? preferred : candidates;
 }
 
 export function hourlyObservationsForElement(

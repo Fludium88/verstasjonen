@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { LocationRecord } from '@/types/weather';
-import { WeatherStationResolver } from '@/services/station-resolver/stationResolver';
 import {
   checkRateLimit,
   createRateLimitExceededResponse,
@@ -150,13 +149,6 @@ export async function POST(req: NextRequest) {
       severity: 'info',
     });
 
-    // Auto-resolve station mappings for optimal sensors
-    try {
-      WeatherStationResolver.resolveStationsForLocation(targetLocation);
-    } catch (stationErr) {
-      console.warn('Station resolver warning:', stationErr);
-    }
-
     // Keep location persistence independent from external weather APIs. The
     // dashboard/forecast/history routes fetch their own requested ranges after
     // this response, avoiding long Frost backfills and serverless timeouts.
@@ -232,8 +224,6 @@ export async function PUT(req: NextRequest) {
       db.clearLocationWeatherData(id);
     }
     db.saveLocation(updated);
-    WeatherStationResolver.resolveStationsForLocation(updated);
-
     logSecurityEvent({
       type: 'LOCATION_MODIFIED',
       endpoint: '/api/locations',

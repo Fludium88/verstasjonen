@@ -103,6 +103,23 @@ export async function POST(req: NextRequest) {
 
     const location = db.getLocation(locationId);
     if (!location) return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+    const requiredCapability = {
+      temperature: 'air_temperature',
+      precipitation: 'precipitation_amount',
+      wind: 'wind_speed',
+      pressure: 'air_pressure_at_sea_level',
+      humidity: 'relative_humidity',
+      snow: 'surface_snow_thickness',
+    }[safeElement];
+    if (!station.elements_supported.includes(requiredCapability)) {
+      return NextResponse.json({ error: 'Målestasjonen støtter ikke valgt element' }, { status: 400 });
+    }
+    const currentMapping = db
+      .getStationMappings(locationId)
+      .find((mapping) => mapping.element === safeElement);
+    if (currentMapping?.station_id === stationId) {
+      return NextResponse.json({ success: true, changed: false });
+    }
     const dist = Math.round(
       calculateHaversineDistanceKm(
         location.latitude,
@@ -112,6 +129,10 @@ export async function POST(req: NextRequest) {
       ) * 10
     ) / 10;
 
+    // Observations from a previously selected sensor must never be presented
+    // as if they came from the new mapping. Keep all location-specific mapping
+    // choices, but rebuild measured history for the newly selected set.
+    db.clearLocationMeasuredHistory(locationId);
     db.setStationMapping({
       location_id: locationId,
       element: safeElement,
@@ -122,7 +143,7 @@ export async function POST(req: NextRequest) {
     });
     db.flush();
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, changed: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to update mapping' }, { status: 400 });
   }

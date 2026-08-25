@@ -21,7 +21,6 @@ import { MetAlertItem, ThresholdAlarm } from '@/types/alerts';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { RefreshCw, Navigation, AlertCircle } from 'lucide-react';
 import {
-  isGpsStartupEnabled,
   hasGpsPromptBeenShown,
   getCurrentGpsPosition,
   reverseGeocodeCoords,
@@ -35,6 +34,7 @@ import {
   saveLocalLocation,
   syncSavedLocationsWithServer,
 } from '@/lib/savedLocationsStorage';
+import { primeThreeMonthHistoryCache } from '@/lib/weatherHistoryStorage';
 
 const VALID_TABS: readonly NavTab[] = [
   'dashboard',
@@ -54,7 +54,7 @@ export default function Home() {
   const [savedLocations, setSavedLocations] = useState<LocationRecord[]>([]);
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [historyInitialRange, setHistoryInitialRange] = useState<string>('30d');
+  const [historyInitialRange, setHistoryInitialRange] = useState<string>('3m');
   const [metAlerts, setMetAlerts] = useState<MetAlertItem[]>([]);
   const [thresholdAlarms, setThresholdAlarms] = useState<ThresholdAlarm[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -176,6 +176,7 @@ export default function Home() {
         return;
       }
       setDashboardData(json);
+      void primeThreeMonthHistoryCache(json.location.id).catch(() => undefined);
       lastFetchTimeRef.current = Date.now();
       if (json.location?.id) {
         setCurrentLocationId(json.location.id);
@@ -256,7 +257,6 @@ export default function Home() {
     const initLocationAndWeather = async () => {
       const preferredDefaultId = getDefaultLocationId();
       const previousActiveId = getActiveLocationId();
-      const isAutoGps = isGpsStartupEnabled();
       const hasBeenPrompted = hasGpsPromptBeenShown();
 
       let syncedLocations: LocationRecord[];
@@ -285,12 +285,14 @@ export default function Home() {
       setActiveLocationId(initialLoc);
       void fetchDashboardData(initialLoc);
 
-      // 2. ONLY run startup GPS if user explicitly enabled auto GPS on startup, OR on very first visit
-      if (isAutoGps) {
+      // 2. After the first-run explanation has been handled, always refresh
+      // the device position on app startup. A denied/unavailable GPS leaves
+      // the already loaded saved location untouched.
+      if (hasBeenPrompted) {
         refreshGpsPosition(false).catch((e) => {
           console.warn('Silent startup GPS refresh fallback:', e);
         });
-      } else if (!hasBeenPrompted) {
+      } else {
         setIsGpsStartupModalOpen(true);
       }
     };
@@ -449,7 +451,7 @@ export default function Home() {
                   onOpenLocationModal={() => setIsLocationModalOpen(true)}
                   onNavigateToForecast={() => setActiveTab('forecast')}
                   onNavigateToHistory={(range) => {
-                    setHistoryInitialRange(range || '30d');
+                    setHistoryInitialRange(range || '3m');
                     setActiveTab('history');
                   }}
                   onNavigateToAstronomy={() => setActiveTab('astronomy')}

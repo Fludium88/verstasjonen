@@ -53,7 +53,11 @@ import {
   calculateCircularMeanDegrees,
   getBeaufort,
 } from '@/lib/weatherUtils';
-import { cacheWeatherHistory, getCachedWeatherHistory } from '@/lib/weatherHistoryStorage';
+import {
+  cacheWeatherHistory,
+  getCachedWeatherHistory,
+  isWeatherHistoryCacheFresh,
+} from '@/lib/weatherHistoryStorage';
 
 interface HistoryViewProps {
   locationId: string;
@@ -76,7 +80,7 @@ const toLocalDateValue = (date: Date) => {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ locationId, initialRange }) => {
   const [parameter, setParameter] = useState<ParameterType>('temperature');
-  const [range, setRange] = useState<RangeType>(() => (isRangeType(initialRange) ? initialRange : '30d'));
+  const [range, setRange] = useState<RangeType>(() => (isRangeType(initialRange) ? initialRange : '3m'));
   const [resolutionOverride, setResolutionOverride] = useState<ResolutionMode>('auto');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -144,16 +148,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ locationId, initialRan
     const cached = !isManualRefresh
       ? getCachedWeatherHistory<any>(locationId, parameter, range, rangeKey)
       : null;
+    setError(null);
     if (cached) {
       setData(cached.payload);
       setLoading(false);
+      if (isWeatherHistoryCacheFresh(cached.cachedAt, range)) return;
     }
     if (isManualRefresh) {
       setRefreshing(true);
     } else if (!cached) {
       setLoading(true);
     }
-    setError(null);
     try {
       let url = `/api/weather/history?locationId=${locationId}&parameter=${parameter}&range=${range}`;
       if (range === 'custom') {

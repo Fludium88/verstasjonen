@@ -27,6 +27,7 @@ import {
   Check,
 } from 'lucide-react';
 import { WeatherStation } from '@/types/weather';
+import { clearCachedWeatherHistory } from '@/lib/weatherHistoryStorage';
 
 type StationWithDistance = WeatherStation & { distance_km: number; score?: number };
 
@@ -118,6 +119,8 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
         signal: controller.signal,
       });
       if (res.ok && !controller.signal.aborted && requestedLocationId === locationIdRef.current) {
+        const result = await res.json().catch(() => ({ changed: true }));
+        if (result.changed !== false) clearCachedWeatherHistory(locationId);
         await fetchStations();
         onRefresh();
       } else if (!res.ok && !controller.signal.aborted && requestedLocationId === locationIdRef.current) {

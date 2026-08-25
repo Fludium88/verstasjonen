@@ -18,8 +18,6 @@ import { PwaInstallModal } from '../pwa/PwaInstallModal';
 import { usePwaInstall } from '@/lib/pwaInstall';
 import { useAccessibleDialog } from '../common/useAccessibleDialog';
 import {
-  isGpsStartupEnabled,
-  setGpsStartupEnabled,
   getCurrentGpsPosition,
   reverseGeocodeCoords,
   syncGpsLocationToServer,
@@ -50,7 +48,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [frostClientId, setFrostClientId] = useState('');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(60);
-  const [gpsStartup, setGpsStartup] = useState<boolean>(false);
   const [isGpsLocating, setIsGpsLocating] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<StatusFeedback | null>(null);
@@ -65,7 +62,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (savedInterval !== null) {
         setAutoRefreshInterval(parseInt(savedInterval, 10));
       }
-      setGpsStartup(isGpsStartupEnabled());
     }
     return () => {
       controller.abort();
@@ -85,18 +81,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         console.error(e);
       }
     }
-  };
-
-  const handleToggleGpsStartup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    setGpsStartup(checked);
-    setGpsStartupEnabled(checked);
-    setFeedback({
-      type: 'info',
-      text: checked
-        ? 'GPS er aktivert ved oppstart.'
-        : 'GPS ved oppstart er deaktivert. Forrige lagrede sted benyttes.',
-    });
   };
 
   const handleTestGpsNow = async () => {
@@ -302,17 +286,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="space-y-2 text-[11px] text-slate-400 leading-relaxed">
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-750">
-                <label htmlFor="gps-startup-toggle" className="text-slate-300 cursor-pointer font-medium">
-                  Hent min posisjon automatisk ved oppstart
-                </label>
-                <input
-                  id="gps-startup-toggle"
-                  type="checkbox"
-                  checked={gpsStartup}
-                  onChange={handleToggleGpsStartup}
-                  className="w-4 h-4 rounded accent-sky-500 cursor-pointer"
-                />
+              <div className="rounded-lg border border-slate-750 bg-slate-900/60 p-2.5">
+                <p className="font-medium text-slate-300">GPS oppdateres automatisk ved oppstart</p>
+                <p className="mt-1 text-slate-500">Hvis posisjonstilgang er avslått eller utilgjengelig, beholdes sist valgte lagrede sted.</p>
               </div>
 
               <button
