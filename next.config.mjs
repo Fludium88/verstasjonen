@@ -26,6 +26,12 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  // AI Studio serves the Next.js dev server through this app-specific Cloud
+  // Run hostname. Next.js otherwise rejects the cross-origin client chunks and
+  // HMR endpoint, leaving the server-rendered loading screen unhydrated.
+  allowedDevOrigins: [
+    "ais-dev-wsy5bkvq727uf3do3n5qmd-102152835313.europe-west2.run.app",
+  ],
   turbopack: {
     root: projectRoot,
   },
