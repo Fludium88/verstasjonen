@@ -229,19 +229,8 @@ export const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
     return getTemperatureDomain(Math.min(...vals), Math.max(...vals), 8);
   }, [hourly_history_24h]);
 
-  // Helper for dynamic photographic landscape image based on current weather condition
-  const getLandscapeImage = (symbol?: string | null) => {
-    const s = (symbol || '').toLowerCase();
-    if (!s) return null;
-    if (s.includes('snow')) return '/images/weather-landscapes/snow.jpg';
-    if (s.includes('rain') || s.includes('sleet') || s.includes('drizzle'))
-      return '/images/weather-landscapes/rain.jpg';
-    if (s.includes('clearsky') || s.includes('fair') || s.includes('sun'))
-      return '/images/weather-landscapes/sun.jpg';
-    if (s.includes('cloud')) return '/images/weather-landscapes/cloudy.jpg';
-    return null;
-  };
-  const landscapeImage = getLandscapeImage(current.symbol_code);
+  // Always render a valid photographic weather illustration, including while current measurements are unavailable.
+  const landscapeImage = '/images/weather-landscapes/weather-situation.png';
 
   return (
     <div className="space-y-6 pb-12">
@@ -336,7 +325,7 @@ export const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
           <div
             className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-out group-hover:scale-105"
             style={{
-              backgroundImage: landscapeImage ? `url(${landscapeImage})` : undefined,
+              backgroundImage: `url(${landscapeImage})`,
             }}
           />
 

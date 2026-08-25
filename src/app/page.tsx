@@ -9,7 +9,6 @@ import { LocationsOverviewView } from '@/components/locations/LocationsOverviewV
 import { ForecastView } from '@/components/forecast/ForecastView';
 import { HistoryView } from '@/components/history/HistoryView';
 import { ForecastAccuracyView } from '@/components/accuracy/ForecastAccuracyView';
-import { ConstructionModeView } from '@/components/construction/ConstructionModeView';
 import { AstronomyView } from '@/components/astronomy/AstronomyView';
 import { DataSourcesView } from '@/components/sources/DataSourcesView';
 import { CalibrationView } from '@/components/calibration/CalibrationView';
@@ -44,7 +43,6 @@ const VALID_TABS: readonly NavTab[] = [
   'history',
   'astronomy',
   'accuracy',
-  'construction',
   'sources',
   'calibration',
   'settings',
@@ -477,10 +475,6 @@ export default function Home() {
 
               {activeTab === 'accuracy' && (
                 <ForecastAccuracyView locationId={currentLocationId} />
-              )}
-
-              {activeTab === 'construction' && (
-                <ConstructionModeView locationId={currentLocationId} />
               )}
 
               {activeTab === 'astronomy' && (

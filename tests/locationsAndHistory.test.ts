@@ -24,6 +24,7 @@ import {
   setDefaultLocationId,
   STORAGE_KEYS,
 } from '../src/lib/savedLocationsStorage';
+import { cacheWeatherHistory, getCachedWeatherHistory } from '../src/lib/weatherHistoryStorage';
 
 describe('Historical Data Verification in DB', () => {
   it('correctly identifies whether historical data has been fetched before', () => {
@@ -155,5 +156,17 @@ describe('savedLocationsStorage (Local Storage & Persistence)', () => {
     deleteLocalLocation('loc_custom_bergen');
     const remaining = getLocalSavedLocations();
     expect(remaining.some((l) => l.id === 'loc_custom_bergen')).toBe(false);
+  });
+});
+
+describe('weatherHistoryStorage', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('keeps aggregated Frost history per location, parameter and range', () => {
+    const payload = { type: 'DAILY', points: [{ date: '2026-08-24', temp_avg: 12.4 }] };
+    cacheWeatherHistory('loc_history', 'temperature', '1y', payload);
+
+    expect(getCachedWeatherHistory('loc_history', 'temperature', '1y')?.payload).toEqual(payload);
+    expect(getCachedWeatherHistory('loc_history', 'wind', '1y')).toBeNull();
   });
 });

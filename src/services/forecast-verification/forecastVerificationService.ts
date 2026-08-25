@@ -198,10 +198,10 @@ export function calculateForecastVerification(
       retained_forecast_runs: sortedRuns.length,
       oldest_forecast_run_at: sortedRuns[0]?.retrieved_at ?? null,
       newest_forecast_run_at: sortedRuns[sortedRuns.length - 1]?.retrieved_at ?? null,
-      maximum_runs_retained: 30,
+      maximum_runs_retained: 192,
       observation_match_tolerance_minutes: OBSERVATION_MATCH_TOLERANCE_MS / 60000,
       lead_time_tolerance_hours: LEAD_TIME_TOLERANCE_HOURS,
-      note: 'Resultatene bygger bare på beholdte prognosekjøringer som kan matches mot faktiske målinger. Databasen beholder maksimalt 30 kjøringer per sted.',
+      note: 'Resultatene bygger bare på beholdte prognosekjøringer som kan matches mot faktiske målinger. Databasen beholder opptil åtte døgn med timevise kjøringer per sted.',
     },
   };
 }

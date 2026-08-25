@@ -9,7 +9,6 @@ import {
   Radio,
   SunMoon,
   MapPin,
-  HardHat,
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 
@@ -27,7 +26,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onTabChange }) 
     { id: 'history', label: 'Historikk', icon: History },
     { id: 'astronomy', label: 'Sol/måne', icon: SunMoon },
     { id: 'accuracy', label: 'Treff', icon: Target },
-    { id: 'construction', label: 'Anlegg', icon: HardHat },
     { id: 'sources', label: 'Kilder', icon: Radio },
   ];
 

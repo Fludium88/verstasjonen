@@ -7,7 +7,6 @@ import {
   CalendarDays,
   History,
   Target,
-  HardHat,
   Radio,
   Settings,
   ChevronDown,
@@ -16,7 +15,7 @@ import {
 } from 'lucide-react';
 import { LocationRecord } from '@/types/weather';
 
-export type NavTab = 'dashboard' | 'forecast' | 'history' | 'astronomy' | 'accuracy' | 'construction' | 'sources';
+export type NavTab = 'dashboard' | 'forecast' | 'history' | 'astronomy' | 'accuracy' | 'sources';
 
 interface NavbarProps {
   activeTab: NavTab;
@@ -39,7 +38,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'history', label: 'Historikk', icon: History },
     { id: 'astronomy', label: 'Sol & måne', icon: SunMoon },
     { id: 'accuracy', label: 'Treffsikkerhet', icon: Target },
-    { id: 'construction', label: 'Anlegg', icon: HardHat },
     { id: 'sources', label: 'Datakilder', icon: Radio },
   ];
 

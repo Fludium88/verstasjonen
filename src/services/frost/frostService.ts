@@ -123,7 +123,7 @@ export class FrostService {
     if (!clientId) return [];
 
     const authHeader = `Basic ${Buffer.from(`${clientId}:`).toString('base64')}`;
-    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?geometry=nearest(POINT(${location.longitude}%20${location.latitude}))&validtime=now&nearestmaxcount=10`;
+    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?geometry=nearest(POINT(${location.longitude}%20${location.latitude}))&validtime=now&nearestmaxcount=50`;
 
     try {
       const res = await fetch(url, {

@@ -16,6 +16,7 @@ import {
   syncSavedLocationsWithServer,
   setActiveLocationId,
 } from '@/lib/savedLocationsStorage';
+import { primeOneYearHistoryCache } from '@/lib/weatherHistoryStorage';
 import { useAccessibleDialog } from '../common/useAccessibleDialog';
 
 interface LocationModalProps {
@@ -242,6 +243,9 @@ export const LocationModal: React.FC<LocationModalProps> = ({
         // Persist locally in PWA / Browser storage immediately
         saveLocalLocation(newLoc);
         setActiveLocationId(newLoc.id);
+        // Start a real Frost backfill as soon as the user saves a searched area.
+        // The response is kept locally so the first history visit is immediate.
+        void primeOneYearHistoryCache(newLoc.id).catch(() => undefined);
 
         setIsCreating(false);
         setName('');

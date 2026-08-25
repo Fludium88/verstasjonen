@@ -6,7 +6,6 @@ import {
   Calendar,
   LineChart,
   BarChart3,
-  HardHat,
   Radio,
   Settings,
   CloudSun,
@@ -24,7 +23,6 @@ export type NavTab =
   | 'history'
   | 'astronomy'
   | 'accuracy'
-  | 'construction'
   | 'sources'
   | 'calibration'
   | 'settings';
@@ -51,7 +49,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'history' as NavTab, label: 'Historikk', icon: LineChart },
     { id: 'astronomy' as NavTab, label: 'Sol & måne', icon: SunMoon },
     { id: 'accuracy' as NavTab, label: 'Analyse', icon: BarChart3 },
-    { id: 'construction' as NavTab, label: 'Anlegg', icon: HardHat },
     { id: 'sources' as NavTab, label: 'Datakilder', icon: Radio },
     { id: 'calibration' as NavTab, label: 'Kalibrering', icon: Sliders },
   ];

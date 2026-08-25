@@ -75,6 +75,7 @@ export const ForecastAccuracyView: React.FC<ForecastAccuracyViewProps> = ({ loca
   }, [locationId, reloadKey]);
 
   const activeMetric = metrics.find((m) => m.lead_time_hours === selectedLeadTime);
+  const hasVerifiedData = metrics.some((metric) => metric.data_points > 0);
 
   const chartData = (recentPairs || []).map((p) => {
     const dt = new Date(p.valid_at);
@@ -156,7 +157,7 @@ export const ForecastAccuracyView: React.FC<ForecastAccuracyViewProps> = ({ loca
         </div>
       </div>
 
-      {metrics.length === 0 && (
+      {!hasVerifiedData && (
         <div role="status" className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 text-sm text-slate-300">
           Det finnes ennå ingen verifiserte prognoser for dette stedet. Statistikken vises når en tidligere prognose kan sammenlignes med en faktisk måling.
         </div>

@@ -559,13 +559,14 @@ class DatabaseEngine {
       this.data.forecast_values.push(v);
     }
 
-    // Keep max 30 recent forecast runs per location to prevent unbounded DB growth
+    // Retain enough hourly snapshots to verify all supported lead times, including +48h.
+    const maximumRunsPerLocation = 192;
     const runsForLoc = this.data.forecast_runs
       .filter((r) => r.location_id === run.location_id)
       .sort((a, b) => b.retrieved_at.localeCompare(a.retrieved_at));
 
-    if (runsForLoc.length > 30) {
-      const keepIds = new Set(runsForLoc.slice(0, 30).map((r) => r.id));
+    if (runsForLoc.length > maximumRunsPerLocation) {
+      const keepIds = new Set(runsForLoc.slice(0, maximumRunsPerLocation).map((r) => r.id));
       this.data.forecast_runs = this.data.forecast_runs.filter(
         (r) => r.location_id !== run.location_id || keepIds.has(r.id)
       );

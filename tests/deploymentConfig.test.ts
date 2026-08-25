@@ -40,4 +40,9 @@ describe('Cloud Run deployment contract', () => {
     );
     expect(envExample).not.toContain('APP_ACCESS_TOKEN');
   });
+
+  it('does not ship the retired construction feature', () => {
+    expect(existsSync(new URL('../src/components/construction/ConstructionModeView.tsx', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../src/app/api/weather/construction/route.ts', import.meta.url))).toBe(false);
+  });
 });

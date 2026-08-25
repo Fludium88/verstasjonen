@@ -204,25 +204,6 @@ export interface ForecastAccuracyItem {
   wind_points?: number;
 }
 
-export interface ConstructionMetrics {
-  location_name: string;
-  rain_24h_mm: number | null;
-  rain_72h_mm: number | null;
-  rain_7d_mm: number | null;
-  frost_hours_7d: number | null;
-  frost_days_30d: number | null;
-  current_temp: number | null;
-  is_below_freezing: boolean | null;
-  wind_gust_max_24h: number | null;
-  wind_above_15ms_hours: number | null;
-  concrete_pouring_status: 'OPTIMAL' | 'ACCEPTABLE' | 'CAUTION' | 'PROHIBITED' | 'UNKNOWN';
-  concrete_notes: string;
-  asphalt_laying_status: 'OPTIMAL' | 'ACCEPTABLE' | 'CAUTION' | 'PROHIBITED' | 'UNKNOWN';
-  asphalt_notes: string;
-  data_status?: 'CURRENT' | 'PARTIAL' | 'STALE' | 'UNAVAILABLE';
-  latest_observation_at?: string | null;
-}
-
 export interface ElementSourceDetail {
   element: string;
   label: string;

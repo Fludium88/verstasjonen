@@ -53,6 +53,7 @@ import {
   calculateCircularMeanDegrees,
   getBeaufort,
 } from '@/lib/weatherUtils';
+import { cacheWeatherHistory, getCachedWeatherHistory } from '@/lib/weatherHistoryStorage';
 
 interface HistoryViewProps {
   locationId: string;
@@ -139,9 +140,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ locationId, initialRan
     historyAbortRef.current?.abort();
     const controller = new AbortController();
     historyAbortRef.current = controller;
+    const rangeKey = range === 'custom' ? `${customFromDate}_${customToDate}` : '';
+    const cached = !isManualRefresh
+      ? getCachedWeatherHistory<any>(locationId, parameter, range, rangeKey)
+      : null;
+    if (cached) {
+      setData(cached.payload);
+      setLoading(false);
+    }
     if (isManualRefresh) {
       setRefreshing(true);
-    } else {
+    } else if (!cached) {
       setLoading(true);
     }
     setError(null);
@@ -153,7 +162,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ locationId, initialRan
       const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
       if (res.ok) {
         const json = await res.json();
-        if (!controller.signal.aborted && historyAbortRef.current === controller) setData(json);
+        if (!controller.signal.aborted && historyAbortRef.current === controller) {
+          setData(json);
+          cacheWeatherHistory(locationId, parameter, range, json, rangeKey);
+        }
       } else {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || 'Kunne ikke hente værhistorikken.');

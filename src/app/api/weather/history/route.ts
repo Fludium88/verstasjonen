@@ -81,12 +81,21 @@ export async function GET(req: NextRequest) {
       const { startUtc } = getLocalDayBounds(drilldownDate, location.timezone);
       backfillDays = Math.min(366, Math.max(2, Math.ceil((now.getTime() - startUtc.getTime()) / (24 * 60 * 60 * 1000)) + 1));
     }
-    // Long historical imports belong to scheduled synchronization. A request
-    // returns the measured coverage already available instead of blocking a
-    // serverless response on dozens of sequential Frost pages.
-    const longBackfillDeferred = backfillDays > 31;
     let observations = measuredObservations(db.getObservations(location.id));
-    if (observations.length < 24 && FrostService.getFrostClientId() && !longBackfillDeferred) {
+    const oldestObservationAt = observations.reduce<number | null>((oldest, observation) => {
+      const timestamp = new Date(observation.observed_at).getTime();
+      return Number.isFinite(timestamp) && (oldest === null || timestamp < oldest) ? timestamp : oldest;
+    }, null);
+    const requestedStartAt = now.getTime() - backfillDays * 24 * 60 * 60 * 1000;
+    const coveredLocalDays = new Set(
+      observations.map((observation) => getLocalDateKey(observation.observed_at, location.timezone))
+    ).size;
+    const minimumExpectedDays = Math.max(1, Math.floor(backfillDays * 0.7));
+    const needsRequestedCoverage =
+      oldestObservationAt === null ||
+      oldestObservationAt > requestedStartAt + 36 * 60 * 60 * 1000 ||
+      coveredLocalDays < minimumExpectedDays;
+    if (FrostService.getFrostClientId() && needsRequestedCoverage) {
       await FrostService.backfillLocationObservations(location, backfillDays);
       observations = measuredObservations(db.getObservations(location.id));
     } else if (
@@ -151,12 +160,10 @@ export async function GET(req: NextRequest) {
               }
             : null,
           hourly,
-          data_status: hourly.length > 0 ? 'MEASURED' : longBackfillDeferred ? 'PARTIAL' : 'UNAVAILABLE',
+          data_status: hourly.length > 0 ? 'MEASURED' : 'UNAVAILABLE',
           data_availability: {
-            long_backfill_deferred: longBackfillDeferred,
-            message: longBackfillDeferred
-              ? 'Lang historikk synkroniseres separat. Responsen viser tilgjengelige målinger.'
-              : null,
+            long_backfill_deferred: false,
+            message: null,
           },
         },
         { headers: responseHeaders }
@@ -264,12 +271,10 @@ export async function GET(req: NextRequest) {
           wind_rose: computeWindRose(binned.map((item) => ({ speed: item.wind_speed, dir: item.wind_direction }))),
           rain_events: rainEvents,
           records,
-          data_status: hourlyObservations.length > 0 ? 'MEASURED' : longBackfillDeferred ? 'PARTIAL' : 'UNAVAILABLE',
+          data_status: hourlyObservations.length > 0 ? 'MEASURED' : 'UNAVAILABLE',
           data_availability: {
-            long_backfill_deferred: longBackfillDeferred,
-            message: longBackfillDeferred
-              ? 'Lang historikk synkroniseres separat. Responsen viser tilgjengelige målinger.'
-              : null,
+            long_backfill_deferred: false,
+            message: null,
           },
         },
         { headers: responseHeaders }
@@ -350,12 +355,10 @@ export async function GET(req: NextRequest) {
         wind_rose: computeWindRose(daily.map((day) => ({ speed: day.wind_avg, dir: day.wind_dominant_direction }))),
         rain_events: rainEvents,
         records,
-        data_status: daily.length > 0 ? 'MEASURED' : longBackfillDeferred ? 'PARTIAL' : 'UNAVAILABLE',
+        data_status: daily.length > 0 ? 'MEASURED' : 'UNAVAILABLE',
         data_availability: {
-          long_backfill_deferred: longBackfillDeferred,
-          message: longBackfillDeferred
-            ? 'Lang historikk synkroniseres separat. Responsen viser tilgjengelige målinger.'
-            : null,
+          long_backfill_deferred: false,
+          message: null,
         },
       },
       { headers: responseHeaders }
