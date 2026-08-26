@@ -3,6 +3,19 @@ import { WEATHER_CONFIG } from '@/lib/weatherConfig';
 import { roundMetCoord, calculateFeelsLike } from '@/lib/weatherUtils';
 import { ForecastRun, ForecastValue } from '@/types/weather';
 
+export interface ForecastFetchResult {
+  run: ForecastRun;
+  values: ForecastValue[];
+  fromCache: boolean;
+  isDelayed: boolean;
+}
+
+export function getForecastSourceLabel(
+  isDelayed = false
+): string {
+  return isDelayed ? 'Forsinket MET Locationforecast 2.0' : 'MET Locationforecast 2.0';
+}
+
 interface MetTimeseriesItem {
   time: string;
   data: {
@@ -117,7 +130,7 @@ export class MetForecastService {
     lat: number,
     lon: number,
     altitude?: number | null
-  ): Promise<{ run: ForecastRun; values: ForecastValue[]; fromCache: boolean; isDelayed: boolean }> {
+  ): Promise<ForecastFetchResult> {
     const db = getDb();
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       throw new Error('Invalid coordinates for MET Locationforecast.');
@@ -136,11 +149,25 @@ export class MetForecastService {
       .getForecastRuns(locationId)
       .filter(
         (run) =>
+          run.source === 'MET_LOCATIONFORECAST_2_0' &&
           run.latitude === roundedLat &&
           run.longitude === roundedLon &&
           run.altitude === altInt
       )
       .sort((a, b) => b.retrieved_at.localeCompare(a.retrieved_at))[0];
+
+    const expiresAt = cachedEntry?.expires_at ? Date.parse(cachedEntry.expires_at) : Number.NaN;
+    if (matchingRun && Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+      const values = db.getForecastValuesForRun(matchingRun.id);
+      if (values.some((value) => Date.parse(value.valid_at) >= Date.now())) {
+        return {
+          run: matchingRun,
+          values,
+          fromCache: true,
+          isDelayed: false,
+        };
+      }
+    }
 
     const headers: Record<string, string> = {
       'User-Agent': WEATHER_CONFIG.defaultUserAgent,
@@ -163,11 +190,19 @@ export class MetForecastService {
         // Not modified, reuse existing cached forecast run
         if (matchingRun) {
           const values = db.getForecastValuesForRun(matchingRun.id);
-          return { run: matchingRun, values, fromCache: true, isDelayed: false };
+          return {
+            run: matchingRun,
+            values,
+            fromCache: true,
+            isDelayed: false,
+          };
         }
       }
 
       if (response.ok) {
+        if (response.status === 203) {
+          console.warn('MET Locationforecast endpoint is deprecated (HTTP 203).');
+        }
         const data: unknown = await response.json();
         if (!isRecord(data) || !isRecord(data.properties)) {
           throw new Error('MET Locationforecast returned an invalid payload.');
@@ -319,28 +354,42 @@ export class MetForecastService {
         });
         db.flush();
 
-        return { run: runRecord, values, fromCache: false, isDelayed: false };
+        return {
+          run: runRecord,
+          values,
+          fromCache: false,
+          isDelayed: false,
+        };
       }
+      throw new Error(`MET Locationforecast failed with status ${response.status}.`);
     } catch (err) {
       console.warn('MET Locationforecast fetch error:', err);
     }
 
-    // Fallback to last known forecast snapshot from DB
-    const fallbackRun = db
+    // Preserve the latest MET snapshot while it still contains future values.
+    const fallbackMetRun = db
       .getForecastRuns(locationId)
       .filter(
         (run) =>
+          run.source === 'MET_LOCATIONFORECAST_2_0' &&
           run.latitude === roundedLat &&
           run.longitude === roundedLon &&
           run.altitude === altInt
       )
       .sort((a, b) => b.retrieved_at.localeCompare(a.retrieved_at))[0];
-    if (fallbackRun) {
-      const values = db.getForecastValuesForRun(fallbackRun.id);
-      return { run: fallbackRun, values, fromCache: true, isDelayed: true };
+    if (fallbackMetRun) {
+      const values = db.getForecastValuesForRun(fallbackMetRun.id);
+      if (values.some((value) => Date.parse(value.valid_at) >= Date.now())) {
+        return {
+          run: fallbackMetRun,
+          values,
+          fromCache: true,
+          isDelayed: true,
+        };
+      }
     }
 
-    throw new Error('No forecast data available (MET API offline and no cache).');
+    throw new Error('No forecast data available (MET API offline and no usable MET cache).');
   }
 
   /**

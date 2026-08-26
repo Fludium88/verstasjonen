@@ -6,6 +6,8 @@ import { AggregationService } from '../aggregation/aggregationService';
 import { calculateHaversineDistanceKm } from '@/lib/weatherUtils';
 
 type FrostPageResult = { status: number; data: unknown[]; complete: boolean };
+const FROST_NEAREST_STATION_COUNT = 500;
+const FROST_CAPABILITY_BATCH_SIZE = 100;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -173,7 +175,13 @@ export class FrostService {
     if (!clientId) return [];
 
     const authHeader = `Basic ${Buffer.from(`${clientId}:`).toString('base64')}`;
-    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?geometry=nearest(POINT(${location.longitude}%20${location.latitude}))&validtime=now&nearestmaxcount=100`;
+    const sourceParams = new URLSearchParams({
+      geometry: `nearest(POINT(${location.longitude} ${location.latitude}))`,
+      validtime: 'now',
+      types: 'SensorSystem',
+      nearestmaxcount: String(FROST_NEAREST_STATION_COUNT),
+    });
+    const url = `${WEATHER_CONFIG.frost.sourcesEndpoint}?${sourceParams.toString()}`;
 
     try {
       const res = await fetch(url, {
@@ -197,52 +205,68 @@ export class FrostService {
       const dataItems = json.data || [];
       if (dataItems.length === 0) return [];
 
-      const stationIds = dataItems.map((item: any) => item.id);
+      const stationIds = dataItems
+        .map((item: unknown) => isRecord(item) && typeof item.id === 'string' ? item.id : '')
+        .filter(Boolean);
 
       // Query available time series to know exact active sensors for each station
       const stationCapabilities = new Map<string, Set<string>>();
       try {
-        const tsUrl = `${WEATHER_CONFIG.frost.baseUrl}/observations/availableTimeSeries/v0.jsonld?sources=${stationIds.join(',')}`;
-        const tsResult = await fetchFrostPages(tsUrl, authHeader, 15000);
+        for (let offset = 0; offset < stationIds.length; offset += FROST_CAPABILITY_BATCH_SIZE) {
+          const stationBatch = stationIds.slice(offset, offset + FROST_CAPABILITY_BATCH_SIZE);
+          const tsParams = new URLSearchParams({ sources: stationBatch.join(',') });
+          const tsUrl = `${WEATHER_CONFIG.frost.baseUrl}/observations/availableTimeSeries/v0.jsonld?${tsParams.toString()}`;
+          const tsResult = await fetchFrostPages(tsUrl, authHeader, 15000);
 
-        if (tsResult.status === 200) {
-          const nowIso = new Date().toISOString();
+          if (tsResult.status === 401) return [];
+          if (tsResult.status !== 200 || !tsResult.complete) {
+            console.warn(`Frost capability lookup incomplete for station batch ${offset / FROST_CAPABILITY_BATCH_SIZE + 1}`);
+            continue;
+          }
+
+          const now = Date.now();
           for (const value of tsResult.data) {
             if (!isRecord(value)) continue;
             const sourceId = typeof value.sourceId === 'string' ? value.sourceId : '';
             const elementId = typeof value.elementId === 'string' ? value.elementId : '';
-            const validTo = typeof value.validTo === 'string' ? value.validTo : null;
-            if (sourceId && elementId && (!validTo || validTo >= nowIso)) {
+            const validToMs = typeof value.validTo === 'string' ? Date.parse(value.validTo) : Number.NaN;
+            if (sourceId && elementId && (!Number.isFinite(validToMs) || validToMs >= now)) {
               const stId = sourceId.split(':')[0];
-              if (!stationCapabilities.has(stId)) {
-                stationCapabilities.set(stId, new Set());
-              }
+              if (!stationCapabilities.has(stId)) stationCapabilities.set(stId, new Set());
               stationCapabilities.get(stId)!.add(elementId);
             }
           }
-        } else if (tsResult.status === 401) {
-          return [];
         }
       } catch {
-        // Continue with defaults
+        // Keep source metadata visible even when capability discovery is unavailable.
       }
 
       const stations: WeatherStation[] = [];
       const db = getDb();
 
-      for (const item of dataItems) {
-        const caps = stationCapabilities.get(item.id) || new Set<string>();
+      for (const rawItem of dataItems) {
+        if (!isRecord(rawItem) || typeof rawItem.id !== 'string') continue;
+        const item = rawItem;
+        const stationId = String(item.id);
+        const caps = stationCapabilities.get(stationId) || new Set<string>();
         const elementsSupported = classifyFrostElementIds(caps);
 
-        const stationLatitude = Number(item.geometry?.coordinates?.[1]);
-        const stationLongitude = Number(item.geometry?.coordinates?.[0]);
+        const geometry = isRecord(item.geometry) ? item.geometry : null;
+        const coordinates = geometry && Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
+        const stationLatitude = Number(coordinates[1]);
+        const stationLongitude = Number(coordinates[0]);
         const safeLatitude = Number.isFinite(stationLatitude) ? stationLatitude : location.latitude;
         const safeLongitude = Number.isFinite(stationLongitude) ? stationLongitude : location.longitude;
         const stationAltitude = Number(item.masl);
 
         const st: WeatherStation = {
-          id: item.id,
-          name: item.name || item.shortName || item.id,
+          id: stationId,
+          name:
+            typeof item.name === 'string' && item.name
+              ? item.name
+              : typeof item.shortName === 'string' && item.shortName
+                ? item.shortName
+                : stationId,
           latitude: safeLatitude,
           longitude: safeLongitude,
           altitude: Number.isFinite(stationAltitude) ? stationAltitude : null,

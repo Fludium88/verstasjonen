@@ -40,7 +40,7 @@ Kopier `.env.example` til `.env.local` og fyll inn relevante verdier:
 FROST_CLIENT_ID=
 
 # Identifiserbar User-Agent med en reell kontaktadresse du kontrollerer
-MET_USER_AGENT=
+MET_USER_AGENT=VaerstasjonenApp/1.0.0 (skarshaug@gmail.com; https://github.com/Fludium88/verstasjonen)
 
 ```
 
@@ -83,6 +83,7 @@ npm start
 - [MET Norway Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation)
 - [MET Norway Nowcast](https://api.met.no/weatherapi/nowcast/2.0/documentation)
 - [Frost](https://frost.met.no/)
+- [Kartverket stedsnavn](https://www.kartverket.no/api-og-data/stedsnavndata) brukes til norske stedssøk.
 
 API-nøkler og tilgangshemmeligheter brukes kun på serversiden. Ikke legg dem
 inn i klientkode eller variabler med `NEXT_PUBLIC_`-prefiks.

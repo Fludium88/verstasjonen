@@ -15,7 +15,10 @@ import { AggregationService } from '@/services/aggregation/aggregationService';
 import { AstronomyService } from '@/services/astronomy/astronomyService';
 import { CalibrationService } from '@/services/calibration/calibrationService';
 import { FrostService } from '@/services/frost/frostService';
-import { MetForecastService } from '@/services/met/metForecastService';
+import {
+  getForecastSourceLabel,
+  MetForecastService,
+} from '@/services/met/metForecastService';
 import {
   isFreshMeasuredObservation,
   hourlyValuesForElement,
@@ -148,6 +151,9 @@ export async function GET(req: NextRequest) {
     const snowMeasured = isFreshMeasuredObservation(snowObs, now, freshnessMs);
 
     const forecasts = forecastResult?.values ?? [];
+    const forecastSourceLabel = forecastResult
+      ? getForecastSourceLabel(forecastResult.isDelayed)
+      : 'Ingen modellprognose';
     const currentForecast = [...forecasts]
       .filter(
         (forecast) =>
@@ -257,9 +263,7 @@ export async function GET(req: NextRequest) {
         return {
           source_type: 'PROGNOSE',
           observed_at: currentForecast.valid_at,
-          source_label: forecastResult?.isDelayed
-            ? 'Forsinket MET Locationforecast 2.0'
-            : 'MET Locationforecast 2.0',
+          source_label: forecastSourceLabel,
         };
       }
       return {
@@ -341,7 +345,11 @@ export async function GET(req: NextRequest) {
         : sourceType === 'ESTIMERT'
           ? 'Modelljusterte målinger per element'
           : sourceType === 'PROGNOSE'
-            ? 'MET Locationforecast / Nowcast'
+            ? currentForecast && nowcast.available
+              ? `${forecastSourceLabel} / MET Nowcast`
+              : currentForecast
+                ? forecastSourceLabel
+                : 'MET Nowcast'
             : sourceType === 'BLANDET'
               ? 'Blandede kilder – se kilde per element'
               : 'Ingen ferske data';
@@ -425,6 +433,9 @@ export async function GET(req: NextRequest) {
         wind_direction: forecast.wind_direction,
         symbol_code: useRadar && nowcast.symbol ? nowcast.symbol : forecast.symbol_code,
         is_radar_nowcast: useRadar,
+        source_label: useRadar
+          ? `${forecastSourceLabel}; nedbør/symbol fra MET radarnowcast`
+          : forecastSourceLabel,
       };
     });
 

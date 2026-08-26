@@ -23,18 +23,22 @@ import { RefreshCw, Navigation, AlertCircle } from 'lucide-react';
 import {
   hasGpsPromptBeenShown,
   getCurrentGpsPosition,
+  isGpsLocationId,
+  isGpsStartupEnabled,
   reverseGeocodeCoords,
+  setGpsStartupEnabled,
   syncGpsLocationToServer,
+  watchCurrentGpsPosition,
 } from '@/lib/locationGps';
 import {
   getLocalSavedLocations,
   getActiveLocationId,
   getDefaultLocationId,
   setActiveLocationId,
-  saveLocalLocation,
   syncSavedLocationsWithServer,
 } from '@/lib/savedLocationsStorage';
 import { primeThreeMonthHistoryCache } from '@/lib/weatherHistoryStorage';
+import { calculateHaversineDistanceKm } from '@/lib/weatherUtils';
 
 const VALID_TABS: readonly NavTab[] = [
   'dashboard',
@@ -64,6 +68,7 @@ export default function Home() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [isAlertSettingsOpen, setIsAlertSettingsOpen] = useState<boolean>(false);
   const [gpsToast, setGpsToast] = useState<string | null>(null);
+  const [gpsTrackingEnabled, setGpsTrackingEnabled] = useState(false);
 
   const lastFetchTimeRef = useRef<number>(Date.now());
   const prevAlarmsCountRef = useRef<number>(0);
@@ -74,6 +79,9 @@ export default function Home() {
   const alertsRequestRef = useRef(0);
   const locationsRequestRef = useRef(0);
   const gpsRequestRef = useRef(0);
+  const gpsModeActiveRef = useRef(false);
+  const gpsWatchSyncInFlightRef = useRef(false);
+  const lastGpsSyncRef = useRef<{ latitude: number; longitude: number } | null>(null);
   currentLocationIdRef.current = currentLocationId;
 
   const fetchLocationsList = useCallback(async () => {
@@ -200,6 +208,8 @@ export default function Home() {
   // GPS Position Refresh (strictly when requested)
   const refreshGpsPosition = useCallback(async (showToast = true) => {
     const requestId = ++gpsRequestRef.current;
+    gpsModeActiveRef.current = true;
+    gpsWatchSyncInFlightRef.current = true;
     if (showToast) {
       setGpsToast('📍 Finner din GPS-posisjon og oppdaterer værdata...');
     }
@@ -214,10 +224,15 @@ export default function Home() {
         geo.address
       );
       if (requestId !== gpsRequestRef.current) return;
+      setGpsStartupEnabled(true);
+      setGpsTrackingEnabled(true);
+      lastGpsSyncRef.current = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
 
       setCurrentLocationId(loc.id);
       currentLocationIdRef.current = loc.id;
-      saveLocalLocation(loc);
       setActiveLocationId(loc.id);
       await fetchDashboardData(loc.id);
       await fetchLocationsList();
@@ -233,8 +248,82 @@ export default function Home() {
         setGpsToast(`⚠️ ${err.message || 'Kunne ikke hente GPS-posisjon.'}`);
         setTimeout(() => setGpsToast(null), 4000);
       }
+    } finally {
+      gpsWatchSyncInFlightRef.current = false;
     }
   }, [fetchDashboardData, fetchLocationsList]);
+
+  // Keep the transient GPS record current only while the app is visible.
+  // Ignore normal coordinate jitter; after roughly 250 metres of movement the
+  // server location and its nearest station selection are refreshed in place.
+  useEffect(() => {
+    if (!gpsTrackingEnabled) return;
+
+    let stopWatching: (() => void) | null = null;
+    let disposed = false;
+
+    const startWatching = () => {
+      stopWatching?.();
+      stopWatching = null;
+      if (document.visibilityState !== 'visible') return;
+
+      stopWatching = watchCurrentGpsPosition(async (coords) => {
+        if (disposed || document.visibilityState !== 'visible' || gpsWatchSyncInFlightRef.current) return;
+        const previous = lastGpsSyncRef.current;
+        if (
+          previous &&
+          calculateHaversineDistanceKm(
+            previous.latitude,
+            previous.longitude,
+            coords.latitude,
+            coords.longitude
+          ) < 0.25
+        ) {
+          return;
+        }
+
+        gpsWatchSyncInFlightRef.current = true;
+        try {
+          const geo = await reverseGeocodeCoords(coords.latitude, coords.longitude);
+          if (disposed) return;
+          const loc = await syncGpsLocationToServer(
+            { latitude: coords.latitude, longitude: coords.longitude, altitude: coords.altitude },
+            geo.name,
+            geo.address
+          );
+          if (disposed) return;
+          lastGpsSyncRef.current = { latitude: coords.latitude, longitude: coords.longitude };
+
+          if (gpsModeActiveRef.current) {
+            setCurrentLocationId(loc.id);
+            currentLocationIdRef.current = loc.id;
+            setActiveLocationId(loc.id);
+            await fetchDashboardData(loc.id, true);
+          }
+        } catch (error) {
+          if (!disposed) console.warn('Continuous GPS update failed:', error);
+        } finally {
+          gpsWatchSyncInFlightRef.current = false;
+        }
+      });
+    };
+
+    const handleGpsVisibility = () => {
+      if (document.visibilityState === 'visible') startWatching();
+      else {
+        stopWatching?.();
+        stopWatching = null;
+      }
+    };
+
+    startWatching();
+    document.addEventListener('visibilitychange', handleGpsVisibility);
+    return () => {
+      disposed = true;
+      stopWatching?.();
+      document.removeEventListener('visibilitychange', handleGpsVisibility);
+    };
+  }, [fetchDashboardData, gpsTrackingEnabled]);
 
   // Initial Startup Lifecycle: run EXACTLY ONCE on mount
   useEffect(() => {
@@ -258,6 +347,8 @@ export default function Home() {
       const preferredDefaultId = getDefaultLocationId();
       const previousActiveId = getActiveLocationId();
       const hasBeenPrompted = hasGpsPromptBeenShown();
+      const gpsEnabled = isGpsStartupEnabled();
+      setGpsTrackingEnabled(gpsEnabled);
 
       let syncedLocations: LocationRecord[];
       try {
@@ -285,10 +376,10 @@ export default function Home() {
       setActiveLocationId(initialLoc);
       void fetchDashboardData(initialLoc);
 
-      // 2. After the first-run explanation has been handled, always refresh
-      // the device position on app startup. A denied/unavailable GPS leaves
-      // the already loaded saved location untouched.
-      if (hasBeenPrompted) {
+      // 2. Refresh and track GPS only after the user has granted startup use.
+      // A denied/unavailable GPS leaves the saved location untouched.
+      if (hasBeenPrompted && gpsEnabled) {
+        gpsModeActiveRef.current = true;
         refreshGpsPosition(false).catch((e) => {
           console.warn('Silent startup GPS refresh fallback:', e);
         });
@@ -349,6 +440,12 @@ export default function Home() {
   const handleSelectLocation = (id: string) => {
     if (!id) return;
     gpsRequestRef.current += 1;
+    const gpsLocation = isGpsLocationId(id);
+    gpsModeActiveRef.current = gpsLocation;
+    if (gpsLocation) {
+      setGpsStartupEnabled(true);
+      setGpsTrackingEnabled(true);
+    }
     setCurrentLocationId(id);
     currentLocationIdRef.current = id;
     setActiveLocationId(id);
@@ -514,6 +611,8 @@ export default function Home() {
         isOpen={isGpsStartupModalOpen}
         onClose={() => setIsGpsStartupModalOpen(false)}
         onGpsLocationResolved={(locId) => {
+          gpsModeActiveRef.current = true;
+          setGpsTrackingEnabled(true);
           setCurrentLocationId(locId);
           currentLocationIdRef.current = locId;
           setActiveLocationId(locId);

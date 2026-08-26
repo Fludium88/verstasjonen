@@ -94,7 +94,10 @@ export function calculateForecastVerification(
         new Date(observation.observed_at).getTime() <= nowMs + OBSERVATION_MATCH_TOLERANCE_MS
     )
     .sort((a, b) => a.observed_at.localeCompare(b.observed_at));
-  const runMap = new Map(forecastRuns.map((run) => [run.id, run]));
+  // Accuracy metrics describe MET Locationforecast specifically. A separately
+  // sourced fallback must not silently alter those statistics.
+  const eligibleRuns = forecastRuns.filter((run) => run.source === 'MET_LOCATIONFORECAST_2_0');
+  const runMap = new Map(eligibleRuns.map((run) => [run.id, run]));
   const recentPairs: VerificationPair[] = [];
   const metrics: ForecastAccuracyItem[] = [];
 
@@ -190,7 +193,7 @@ export function calculateForecastVerification(
     });
   }
 
-  const sortedRuns = [...forecastRuns].sort((a, b) => a.retrieved_at.localeCompare(b.retrieved_at));
+  const sortedRuns = [...eligibleRuns].sort((a, b) => a.retrieved_at.localeCompare(b.retrieved_at));
   return {
     metrics,
     recentPairs: recentPairs.sort((a, b) => a.valid_at.localeCompare(b.valid_at)).slice(-48),
@@ -201,7 +204,7 @@ export function calculateForecastVerification(
       maximum_runs_retained: 192,
       observation_match_tolerance_minutes: OBSERVATION_MATCH_TOLERANCE_MS / 60000,
       lead_time_tolerance_hours: LEAD_TIME_TOLERANCE_HOURS,
-      note: 'Resultatene bygger bare på beholdte prognosekjøringer som kan matches mot faktiske målinger. Databasen beholder opptil åtte døgn med timevise kjøringer per sted.',
+      note: 'Resultatene gjelder bare MET Locationforecast-kjøringer som kan matches mot faktiske målinger. Databasen beholder opptil åtte døgn med timevise kjøringer per sted.',
     },
   };
 }

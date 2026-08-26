@@ -86,4 +86,79 @@ describe('MET forecast provenance', () => {
     expect(result.precipitationAmount1h).toBe(0.4);
     expect(result.symbol).toBe('rain');
   });
+
+  it('does not contact MET again before the cached response expires', async () => {
+    const db = getDb();
+    const locationId = 'loc_met_expires';
+    const validAt = new Date(Date.now() + 60 * 60_000).toISOString();
+    db.saveLocation({
+      id: locationId,
+      name: 'Expires test',
+      latitude: 59.91,
+      longitude: 10.75,
+      altitude: null,
+      timezone: 'Europe/Oslo',
+      is_active: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          properties: {
+            meta: { updated_at: new Date().toISOString() },
+            timeseries: [
+              {
+                time: validAt,
+                data: {
+                  instant: { details: { air_temperature: 10, wind_speed: 2 } },
+                  next_1_hours: {
+                    summary: { symbol_code: 'cloudy' },
+                    details: { precipitation_amount: 0 },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            expires: new Date(Date.now() + 30 * 60_000).toUTCString(),
+            etag: 'expires-test',
+          },
+        }
+      )
+    );
+
+    const first = await MetForecastService.fetchAndLogForecast(locationId, 59.91, 10.75, null);
+    const second = await MetForecastService.fetchAndLogForecast(locationId, 59.91, 10.75, null);
+
+    expect(first.fromCache).toBe(false);
+    expect(second.fromCache).toBe(true);
+    expect(second.isDelayed).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails without contacting another provider when MET and its cache are unavailable', async () => {
+    const db = getDb();
+    const locationId = 'loc_met_offline';
+    db.saveLocation({
+      id: locationId,
+      name: 'Fallback test',
+      latitude: 60.39,
+      longitude: 5.32,
+      altitude: 15,
+      timezone: 'Europe/Oslo',
+      is_active: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('MET offline'));
+
+    await expect(
+      MetForecastService.fetchAndLogForecast(locationId, 60.39, 5.32, 15)
+    ).rejects.toThrow('MET API offline');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -5,19 +5,16 @@ import { GET } from '@/app/api/geocoding/route';
 afterEach(() => vi.restoreAllMocks());
 
 describe('deploy-friendly location search', () => {
-  it('maps Norwegian Open-Meteo geocoding results without requiring a browser API key', async () => {
+  it('maps official Kartverket place-name results without requiring an API key', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
-          results: [
+          navn: [
             {
-              name: 'Volda',
-              latitude: 62.1468,
-              longitude: 6.0741,
-              country_code: 'NO',
-              country: 'Norge',
-              admin1: 'Møre og Romsdal',
-              admin2: 'Volda',
+              representasjonspunkt: { nord: 62.1468, øst: 6.0741 },
+              stedsnavn: [{ skrivemåte: 'Volda', skrivemåtestatus: 'godkjent og prioritert' }],
+              kommuner: [{ kommunenavn: 'Volda' }],
+              fylker: [{ fylkesnavn: 'Møre og Romsdal' }],
             },
           ],
         }),
@@ -33,14 +30,14 @@ describe('deploy-friendly location search', () => {
     const result = await response.json();
 
     expect(response.status).toBe(200);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('geocoding-api.open-meteo.com');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('api.kartverket.no/stedsnavn/v1/sted');
     expect(result).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: 'Volda',
           lat: 62.1468,
           lon: 6.0741,
-          geocoding_source: 'Open-Meteo / GeoNames',
+          geocoding_source: 'Kartverket SSR',
         }),
       ])
     );

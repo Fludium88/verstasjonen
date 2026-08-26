@@ -725,9 +725,14 @@ export const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
 
         {/* Col 3: Next 24 Hours Forecast List */}
         <div className="lg:col-span-3 bg-[#0e1628] border border-slate-800/90 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-start gap-2 mb-3">
             <Clock className="w-4 h-4 text-sky-400" />
-            <h3 className="text-sm font-bold text-white">Neste 24 timer</h3>
+            <div>
+              <h3 className="text-sm font-bold text-white">Neste 24 timer</h3>
+              {next5Hours[0]?.source_label && (
+                <p className="mt-0.5 text-[10px] text-slate-500">{next5Hours[0].source_label}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2 text-xs">
@@ -925,7 +930,11 @@ export const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
 
       {/* 6. FOOTER */}
       <footer className="pt-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-        <p>Kilde: MET Norway / Frost API · Ikke en offisiell Yr-tjeneste</p>
+        <p>
+          Kilder:{' '}
+          <a href="https://api.met.no/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-300">MET Norway / Frost API</a>
+          {' '}· Ikke en offisiell Yr-tjeneste
+        </p>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400" /> Målt data

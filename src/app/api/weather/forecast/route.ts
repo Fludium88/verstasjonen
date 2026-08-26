@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { WEATHER_CONFIG } from '@/lib/weatherConfig';
-import { MetForecastService } from '@/services/met/metForecastService';
+import {
+  getForecastSourceLabel,
+  MetForecastService,
+} from '@/services/met/metForecastService';
 import { formatWeatherSymbolName, getWindDirectionCardinal8, formatNorwegianTime, formatNorwegianDate } from '@/lib/weatherUtils';
 import { getLocalDateKey, getLocalDayBounds } from '@/services/time/timeZone';
 import {
@@ -118,6 +121,7 @@ export async function GET(req: NextRequest) {
     }
 
     const forecastValues = forecastResult?.values ?? [];
+    const forecastSourceLabel = getForecastSourceLabel(forecastResult?.isDelayed);
 
     const now = new Date();
     const nowMs = now.getTime();
@@ -156,13 +160,20 @@ export async function GET(req: NextRequest) {
           : 'Ukjent',
         humidity: f.humidity,
         pressure: f.pressure,
-        source_type: radarPrecipitation || radarSymbol ? 'MIXED' : 'WEATHER_MODEL',
-        precipitation_source_type: radarPrecipitation ? 'RADAR_NOWCAST' : 'WEATHER_MODEL',
-        symbol_source_type: radarSymbol ? 'RADAR_NOWCAST' : 'WEATHER_MODEL',
+        source_type:
+          radarPrecipitation || radarSymbol
+            ? 'MIXED'
+            : 'WEATHER_MODEL',
+        precipitation_source_type: radarPrecipitation
+          ? 'RADAR_NOWCAST'
+          : 'WEATHER_MODEL',
+        symbol_source_type: radarSymbol
+          ? 'RADAR_NOWCAST'
+          : 'WEATHER_MODEL',
         source_badge:
           radarPrecipitation || radarSymbol
-            ? 'Værmodell; nedbør/symbol fra radarnowcast'
-            : 'Værmodell',
+            ? `${forecastSourceLabel}; nedbør/symbol fra MET radarnowcast`
+            : forecastSourceLabel,
       };
     });
 
@@ -249,6 +260,8 @@ export async function GET(req: NextRequest) {
             retrieved_at: forecastResult.run.retrieved_at,
             model_run: forecastResult.run.model_run,
             is_delayed: forecastResult.isDelayed,
+            source: forecastResult.run.source,
+            source_label: forecastSourceLabel,
           }
         : null,
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });

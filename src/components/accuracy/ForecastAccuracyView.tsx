@@ -337,7 +337,7 @@ export const ForecastAccuracyView: React.FC<ForecastAccuracyViewProps> = ({ loca
             Hver gang Værstasjonen henter en ny værmelding fra MET Norway, lagres hele prognosen som et uforanderlig
             snapshot i databasen. Når det aktuelle tidspunktet er passert og målestasjonsdata foreligger, kobles
             prognosen mot den faktiske observasjonen. Dette gjør at du over tid kan se nøyaktig hvor presise 24- og
-            48-timersvarslene er for ditt spesifikke sted.
+            48-timersvarslene er for ditt spesifikke sted. Bare prognosekjøringer fra MET inngår i statistikken.
           </p>
         </div>
       </div>

@@ -9,6 +9,7 @@ import {
   GPS_LOCATION_ID_PREFIX,
   getGpsLocationId,
   getCurrentGpsPosition,
+  watchCurrentGpsPosition,
 } from '../src/lib/locationGps';
 import { getDb } from '../src/lib/db';
 import { LocationRecord } from '../src/types/weather';
@@ -64,6 +65,38 @@ describe('GPS Location Management & Foreground Safety', () => {
     expect(first).toBe(second);
     expect(first.startsWith(GPS_LOCATION_ID_PREFIX)).toBe(true);
     expect(first).not.toBe(GPS_LOCATION_ID);
+  });
+
+  it('streams rounded foreground positions and exposes a cleanup function', () => {
+    const clearWatch = vi.fn();
+    const watchPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: {
+          latitude: 59.913912,
+          longitude: 10.752245,
+          altitude: 21.6,
+          accuracy: 7.4,
+        },
+      } as GeolocationPosition);
+      return 42;
+    });
+    Object.defineProperty(global, 'navigator', {
+      value: { geolocation: { watchPosition, clearWatch } },
+      writable: true,
+      configurable: true,
+    });
+    const onPosition = vi.fn();
+
+    const stop = watchCurrentGpsPosition(onPosition);
+
+    expect(onPosition).toHaveBeenCalledWith({
+      latitude: 59.9139,
+      longitude: 10.7522,
+      altitude: 22,
+      accuracy: 7,
+    });
+    stop();
+    expect(clearWatch).toHaveBeenCalledWith(42);
   });
 
   it('rejects positioning if document is in background (foreground safety)', async () => {

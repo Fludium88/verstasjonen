@@ -169,8 +169,6 @@ export const CalibrationView: React.FC<CalibrationViewProps> = ({
           message: `Automatisk krysskalibrert mot ${
             benchmark === 'locationforecast'
               ? 'MET Locationforecast (Yr)'
-              : benchmark === 'open_meteo'
-              ? 'Open-Meteo Global Modell'
               : 'Valgt referanse'
           }!`,
         });
@@ -315,7 +313,7 @@ export const CalibrationView: React.FC<CalibrationViewProps> = ({
               <Layers className="w-5 h-5 text-sky-400" /> Sammenligning mot tilgjengelige kilder
             </h2>
             <p className="text-xs text-slate-400">
-              Målinger fra Meteorologisk institutt (MET Norway), Yr Locationforecast og Open-Meteo
+              Målinger fra Meteorologisk institutt (MET Norway) og Yr Locationforecast
             </p>
           </div>
 
@@ -363,8 +361,6 @@ export const CalibrationView: React.FC<CalibrationViewProps> = ({
                               ? 'bg-emerald-400'
                               : c.source_id === 'locationforecast'
                               ? 'bg-sky-400'
-                              : c.source_id === 'open_meteo'
-                              ? 'bg-purple-400'
                               : 'bg-amber-400'
                           }`}
                         />
@@ -457,16 +453,6 @@ export const CalibrationView: React.FC<CalibrationViewProps> = ({
           >
             <Sparkles className="w-4 h-4" />
             <span>Autokalibrer mot Yr Locationforecast</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAutoCalibrate('open_meteo')}
-            disabled={autoCalibrating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-bold shadow-lg shadow-purple-950/50 transition active:scale-95 disabled:opacity-50"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Autokalibrer mot Open-Meteo (Global modell)</span>
           </button>
 
           <button

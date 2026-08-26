@@ -1,4 +1,4 @@
-export type BenchmarkSourceType = 'frost_station' | 'locationforecast' | 'open_meteo' | 'custom_sensor';
+export type BenchmarkSourceType = 'frost_station' | 'locationforecast' | 'custom_sensor';
 
 export interface SensorCalibrationOffsets {
   temp_offset: number; // in deg C (e.g. +0.5 or -1.2)
@@ -11,7 +11,7 @@ export interface SensorCalibrationOffsets {
 export interface CalibrationSourceComparison {
   source_id: BenchmarkSourceType;
   source_name: string;
-  source_type_label: string; // "Offisiell målestasjon", "Yr numerisk modell", "Open-Meteo ECMWF", "Bruker-referanse"
+  source_type_label: string; // "Offisiell målestasjon", "Yr numerisk modell", "Bruker-referanse"
   temperature: number | null;
   humidity: number | null;
   pressure: number | null;

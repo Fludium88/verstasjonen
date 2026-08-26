@@ -16,6 +16,10 @@ export const GPS_LOCATION_ID = 'loc_gps_current';
 export const GPS_LOCATION_ID_PREFIX = 'loc_gps_';
 let ephemeralGpsLocationId: string | null = null;
 
+export function isGpsLocationId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && (id === GPS_LOCATION_ID || id.startsWith(GPS_LOCATION_ID_PREFIX));
+}
+
 export interface GpsPositionResult {
   latitude: number;
   longitude: number;
@@ -150,6 +154,45 @@ export async function getCurrentGpsPosition(timeoutMs = 6000): Promise<GpsPositi
     }
     throw new Error(msg);
   }
+}
+
+/**
+ * Watches the device position while the caller keeps the app in foreground.
+ * The returned function always stops the browser watcher.
+ */
+export function watchCurrentGpsPosition(
+  onPosition: (position: GpsPositionResult) => void,
+  onError?: (message: string) => void
+): () => void {
+  if (!isGeolocationSupported()) {
+    onError?.('Posisjonstjenester (GPS) er ikke støttet i denne nettleseren.');
+    return () => undefined;
+  }
+
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      onPosition({
+        latitude: Number(position.coords.latitude.toFixed(4)),
+        longitude: Number(position.coords.longitude.toFixed(4)),
+        altitude: position.coords.altitude == null ? null : Math.round(position.coords.altitude),
+        accuracy: Number.isFinite(position.coords.accuracy)
+          ? Math.round(position.coords.accuracy)
+          : null,
+      });
+    },
+    (error) => {
+      if (error.code === 1) onError?.(geolocationDeniedMessage());
+      else if (error.code === 3) onError?.('Posisjoneringen tok for lang tid (tidsavbrudd).');
+      else onError?.('GPS-posisjon er for øyeblikket utilgjengelig.');
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 60_000,
+      timeout: 15_000,
+    }
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
 }
 
 /**

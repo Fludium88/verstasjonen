@@ -1,5 +1,6 @@
 import { LocationRecord } from '@/types/weather';
 import { WEATHER_CONFIG } from './weatherConfig';
+import { isGpsLocationId } from './locationGps';
 
 export const STORAGE_KEYS = {
   SAVED_LOCATIONS: 'vaerstasjonen_saved_locations_v3',
@@ -38,13 +39,17 @@ export function getLocalSavedLocations(): LocationRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
+      const persistentLocations = parsed.filter(
+        (location): location is LocationRecord =>
+          Boolean(location) && typeof location.id === 'string' && !isGpsLocationId(location.id)
+      );
       // Ensure default Aukra is present if user hasn't explicitly removed it
       const deletedIds = getDeletedLocationIds();
-      const hasAukra = parsed.some((l) => l.id === DEFAULT_AUKRA_LOCATION.id);
+      const hasAukra = persistentLocations.some((l) => l.id === DEFAULT_AUKRA_LOCATION.id);
       if (!hasAukra && !deletedIds.has(DEFAULT_AUKRA_LOCATION.id)) {
-        return [DEFAULT_AUKRA_LOCATION, ...parsed];
+        return [DEFAULT_AUKRA_LOCATION, ...persistentLocations];
       }
-      return parsed;
+      if (persistentLocations.length > 0) return persistentLocations;
     }
   } catch (err) {
     console.warn('Failed to parse saved locations from localStorage:', err);
@@ -62,6 +67,7 @@ export function saveLocalLocation(loc: LocationRecord): LocationRecord[] {
   }
 
   const current = getLocalSavedLocations();
+  if (isGpsLocationId(loc.id)) return current;
   const deletedIds = getDeletedLocationIds();
 
   // If re-adding a previously deleted location, remove from deleted blacklist
@@ -95,7 +101,10 @@ export function saveLocalLocation(loc: LocationRecord): LocationRecord[] {
 export function saveLocalLocationsList(locations: LocationRecord[]): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEYS.SAVED_LOCATIONS, JSON.stringify(locations));
+    localStorage.setItem(
+      STORAGE_KEYS.SAVED_LOCATIONS,
+      JSON.stringify(locations.filter((location) => !isGpsLocationId(location.id)))
+    );
   } catch (err) {
     console.error('Failed to save locations list to localStorage:', err);
   }
@@ -190,7 +199,7 @@ export function getDefaultLocationId(): string {
     return DEFAULT_AUKRA_LOCATION.id;
   }
   const saved = localStorage.getItem(STORAGE_KEYS.DEFAULT_LOCATION_ID);
-  if (saved && saved.trim() !== '') {
+  if (saved && saved.trim() !== '' && !isGpsLocationId(saved.trim())) {
     return saved.trim();
   }
   return DEFAULT_AUKRA_LOCATION.id;
@@ -202,7 +211,10 @@ export function getDefaultLocationId(): string {
 export function setDefaultLocationId(id: string): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEYS.DEFAULT_LOCATION_ID, id);
+    localStorage.setItem(
+      STORAGE_KEYS.DEFAULT_LOCATION_ID,
+      isGpsLocationId(id) ? DEFAULT_AUKRA_LOCATION.id : id
+    );
   } catch {
     // ignore
   }
@@ -260,20 +272,12 @@ export async function syncSavedLocationsWithServer(): Promise<LocationRecord[]> 
         }
       }
 
-      // 3. Build unified combined list
+      // 3. Browser storage is authoritative. Never import server-only places,
+      // especially transient GPS records created by this or another browser.
       const combinedMap = new Map<string, LocationRecord>();
-
-      // Put server entries
-      for (const [id, loc] of serverIdMap.entries()) {
-        if (!deletedIds.has(id)) {
-          combinedMap.set(id, loc);
-        }
-      }
-
-      // Add any remaining local entries
       for (const loc of localList) {
-        if (!deletedIds.has(loc.id) && !combinedMap.has(loc.id)) {
-          combinedMap.set(loc.id, loc);
+        if (!deletedIds.has(loc.id) && !isGpsLocationId(loc.id)) {
+          combinedMap.set(loc.id, serverIdMap.get(loc.id) || loc);
         }
       }
 

@@ -172,6 +172,19 @@ function normalizeDatabaseData(parsed: unknown): VaerstasjonenDatabaseData {
   ) {
     throw new Error('Database field calibration_profiles must be an object');
   }
+  const allowedBenchmarks = new Set(['frost_station', 'locationforecast', 'custom_sensor']);
+  const calibrationProfiles = Object.fromEntries(
+    Object.entries((rawProfiles || {}) as Record<string, unknown>).flatMap(([id, value]) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const profile = value as Record<string, unknown>;
+      const referenceBenchmark =
+        typeof profile.reference_benchmark === 'string' &&
+        allowedBenchmarks.has(profile.reference_benchmark)
+          ? profile.reference_benchmark
+          : 'locationforecast';
+      return [[id, { ...profile, reference_benchmark: referenceBenchmark } as LocationCalibrationProfile]];
+    })
+  );
 
   const observations = array<Observation>('observations');
   const nonMeasurementMarkers = [
@@ -218,7 +231,7 @@ function normalizeDatabaseData(parsed: unknown): VaerstasjonenDatabaseData {
     ),
     api_cache_entries: array<ApiCacheEntry>('api_cache_entries'),
     app_settings: appSettings,
-    calibration_profiles: (rawProfiles || {}) as Record<string, LocationCalibrationProfile>,
+    calibration_profiles: calibrationProfiles,
   };
 }
 

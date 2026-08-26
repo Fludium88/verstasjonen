@@ -294,6 +294,7 @@ export interface DashboardPayload {
     wind_direction: number | null;
     symbol_code: string | null;
     is_radar_nowcast: boolean;
+    source_label: string;
   }[];
   sources: ElementSourceDetail[];
   records?: {

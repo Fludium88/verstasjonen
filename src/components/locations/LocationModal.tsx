@@ -7,7 +7,7 @@ import {
   getCurrentGpsPosition,
   reverseGeocodeCoords,
   syncGpsLocationToServer,
-  GPS_LOCATION_ID,
+  isGpsLocationId,
 } from '@/lib/locationGps';
 import {
   getLocalSavedLocations,
@@ -155,7 +155,6 @@ export const LocationModal: React.FC<LocationModalProps> = ({
         geo.address
       );
       if (operationId !== gpsOperationRef.current) return;
-      saveLocalLocation(loc);
       setActiveLocationId(loc.id);
       await fetchLocations();
       onSelectLocation(loc.id);
@@ -380,7 +379,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({
                 </span>
                 {locations.map((loc) => {
                   const isSelected = loc.id === currentLocationId;
-                  const isGpsLoc = loc.id === GPS_LOCATION_ID || loc.name.includes('GPS') || loc.name.includes('Min posisjon');
+                  const isGpsLoc = isGpsLocationId(loc.id);
 
                   return (
                     <div
@@ -619,12 +618,12 @@ export const LocationModal: React.FC<LocationModalProps> = ({
           <p className="text-center text-[10px] leading-relaxed text-slate-500">
             Stedssøk leveres av{' '}
             <a
-              href="https://open-meteo.com/en/docs/geocoding-api"
+              href="https://www.kartverket.no/api-og-data/stedsnavndata"
               target="_blank"
               rel="noreferrer"
               className="underline decoration-slate-600 underline-offset-2 hover:text-slate-300"
             >
-              Open-Meteo / GeoNames
+              Kartverkets stedsnavnregister
             </a>
             . GPS-adresser kan bruke © OpenStreetMap-bidragsytere.
           </p>

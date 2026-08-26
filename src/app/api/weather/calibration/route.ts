@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const targetLocId = sanitizeString(locationId, 64) || WEATHER_CONFIG.defaultLocation.id;
 
     if (action === 'auto_calibrate') {
-      const allowedSources: BenchmarkSourceType[] = ['locationforecast', 'frost_station', 'open_meteo', 'custom_sensor'];
+      const allowedSources: BenchmarkSourceType[] = ['locationforecast', 'frost_station', 'custom_sensor'];
       const source: BenchmarkSourceType = allowedSources.includes(benchmarkSource) ? benchmarkSource : 'locationforecast';
       const updatedPayload = await CalibrationService.autoCalibrate(targetLocId, source);
       

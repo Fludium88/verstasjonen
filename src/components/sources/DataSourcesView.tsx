@@ -699,8 +699,14 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
         <p className="text-xs text-slate-400 leading-relaxed">
           Værprognoser leveres av <strong>Meteorologisk institutt (MET Norway)</strong> via Locationforecast 2.0 og
           Nowcast 2.0. Historiske observasjoner og målestasjonsdata leveres av MET Norway via{' '}
-          <strong>Frost API</strong> (frost.met.no). Dataene er tilgjengeliggjort under Norsk lisens for offentlige
-          data (NLOD) og Creative Commons 4.0 BY.
+          <strong>Frost API</strong> (frost.met.no). Dataene er tilgjengeliggjort under{' '}
+          <a href="https://data.norge.no/nlod/no/2.0" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-200">NLOD 2.0</a>{' '}
+          og{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-200">CC BY 4.0</a>.
+        </p>
+        <p className="text-[11px] text-slate-500">
+          Data kan være avrundet, aggregert, enhetsnormalisert og presentert med egne norske kilde- og værbeskrivelser.
+          Kildeleverandørene har ikke godkjent eller støttet denne bearbeidingen.
         </p>
         <p className="text-[11px] text-slate-500">
           Denne applikasjonen er en uavhengig virtuell værstasjon og er ikke en offisiell Yr- eller MET-tjeneste.

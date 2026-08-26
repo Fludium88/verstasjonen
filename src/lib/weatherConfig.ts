@@ -4,7 +4,10 @@ const configuredMetUserAgent =
 export const WEATHER_CONFIG = {
   appName: 'Værstasjonen',
   version: '1.0.0',
-  defaultUserAgent: configuredMetUserAgent || 'VaerstasjonenApp/1.0.0 (private test deployment)',
+  defaultUserAgent:
+    configuredMetUserAgent ||
+    'VaerstasjonenApp/1.0.0 (skarshaug@gmail.com; https://github.com/Fludium88/verstasjonen)',
+  geocodingUserAgent: 'VaerstasjonenApp/1.0.0 (https://github.com/Fludium88/verstasjonen)',
   met: {
     locationForecastUrl: 'https://api.met.no/weatherapi/locationforecast/2.0/complete',
     nowcastUrl: 'https://api.met.no/weatherapi/nowcast/2.0/complete',

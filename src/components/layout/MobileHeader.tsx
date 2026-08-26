@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { LocationRecord } from '@/types/weather';
 import { PwaInstallPrompt } from '../pwa/PwaInstallPrompt';
-import { GPS_LOCATION_ID } from '@/lib/locationGps';
+import { isGpsLocationId } from '@/lib/locationGps';
 
 interface MobileHeaderProps {
   currentLocation?: LocationRecord | null;
@@ -36,7 +36,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   activeAlertsCount = 0,
 }) => {
   const isGpsActive =
-    currentLocation?.id === GPS_LOCATION_ID ||
+    isGpsLocationId(currentLocation?.id) ||
     (currentLocation?.name && (currentLocation.name.includes('GPS') || currentLocation.name.includes('Min posisjon')));
 
   return (

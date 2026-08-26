@@ -52,7 +52,7 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
         if (!controller.signal.aborted) setData(json);
       } else {
         const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.error || 'Kunne ikke hente værprognoser fra MET.');
+        throw new Error(errJson?.error || 'Kunne ikke hente værprognoser fra tilgjengelige kilder.');
       }
     } catch (e: any) {
       if (controller.signal.aborted) return;
@@ -73,7 +73,7 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
     return (
       <div className="flex flex-col items-center justify-center py-28 text-slate-400 space-y-3">
         <Clock className="w-7 h-7 animate-spin text-sky-400" />
-        <span className="text-sm font-medium">Laster offisielle værprognoser fra Meteorologisk institutt...</span>
+        <span className="text-sm font-medium">Laster værprognoser fra tilgjengelige kilder...</span>
       </div>
     );
   }
@@ -137,7 +137,8 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
             <CalendarDays className="w-6 h-6 text-sky-400" /> Prognose – {location?.name || 'sted ikke tilgjengelig'}
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Offisiell MET Norway Locationforecast 2.0 & Radarbasert Nowcast
+            {forecastRun?.source_label || 'Ingen aktiv prognosekilde'}
+            {radar_available ? ' · MET radarbasert Nowcast tilgjengelig' : ''}
           </p>
         </div>
 
@@ -193,7 +194,7 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
               <CloudRain className="w-5 h-5 text-cyan-400" /> Forventet nedbør neste 48 timer
             </h2>
             <p className="text-xs text-slate-400">
-              Akkumulerte nedbørsmengder fordelt på radarvarsel og meteorologisk numerisk modell
+              Akkumulerte nedbørsmengder fra aktiv prognosemodell, eventuelt supplert med MET radarnowcast
             </p>
           </div>
 
@@ -202,7 +203,7 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
               <span className="w-3 h-3 rounded bg-sky-400 inline-block" /> Radarbasert korttidsvarsel
             </span>
             <span className="flex items-center gap-1.5 text-blue-500">
-              <span className="w-3 h-3 rounded bg-blue-600 inline-block" /> Værmodell (Locationforecast)
+              <span className="w-3 h-3 rounded bg-blue-600 inline-block" /> {forecastRun?.source_label || 'Værmodell'}
             </span>
           </div>
         </div>
@@ -317,7 +318,7 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
-                      {row.source_type === 'MIXED' ? 'Modell + radar' : 'Modell'}
+                      {row.source_badge || (row.source_type === 'MIXED' ? 'Modell + radar' : 'Værmodell')}
                     </span>
                   </td>
                 </tr>

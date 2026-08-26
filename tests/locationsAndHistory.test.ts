@@ -133,6 +133,29 @@ describe('savedLocationsStorage (Local Storage & Persistence)', () => {
     expect(saved.some((l) => l.id === 'loc_custom_oslo')).toBe(true);
   });
 
+  it('never persists transient GPS positions as saved browser locations', () => {
+    const transientGps = {
+      id: 'loc_gps_browser123',
+      name: 'Min posisjon (Oslo)',
+      latitude: 59.9139,
+      longitude: 10.7522,
+      altitude: 20,
+      timezone: 'Europe/Oslo',
+      is_active: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    saveLocalLocation(transientGps);
+    expect(getLocalSavedLocations().some((location) => location.id === transientGps.id)).toBe(false);
+
+    localStorage.setItem(STORAGE_KEYS.SAVED_LOCATIONS, JSON.stringify([transientGps]));
+    expect(getLocalSavedLocations().some((location) => location.id === transientGps.id)).toBe(false);
+
+    setDefaultLocationId(transientGps.id);
+    expect(getDefaultLocationId()).toBe('loc_aukra_default');
+  });
+
   it('deletes location and handles default locations', () => {
     const loc2 = {
       id: 'loc_custom_bergen',

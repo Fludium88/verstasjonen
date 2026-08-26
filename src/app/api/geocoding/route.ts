@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       const reverseUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&zoom=14`;
       const res = await fetch(reverseUrl, {
         headers: {
-          'User-Agent': WEATHER_CONFIG.defaultUserAgent,
+          'User-Agent': WEATHER_CONFIG.geocodingUserAgent,
           'Accept-Language': 'nb-NO,no,en',
         },
         signal: AbortSignal.timeout(4000),
@@ -145,11 +145,15 @@ export async function GET(req: NextRequest) {
       loc.address.toLowerCase().includes(q.toLowerCase())
   );
 
-  // 4. Use Open-Meteo's GeoNames-backed search for deploy-friendly place lookup.
+  // 4. Search Kartverket's official national place-name registry.
   // Reverse geocoding above remains an explicit, low-frequency GPS action.
   try {
-    const encoded = encodeURIComponent(q);
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}&count=8&language=no&format=json&countryCode=NO`;
+    const params = new URLSearchParams({
+      sok: `${q}*`,
+      treffPerSide: '8',
+      side: '1',
+    });
+    const url = `https://api.kartverket.no/stedsnavn/v1/sted?${params.toString()}`;
     const res = await fetch(url, {
       signal: AbortSignal.timeout(3500),
     });
@@ -160,27 +164,42 @@ export async function GET(req: NextRequest) {
         externalPayload && typeof externalPayload === 'object' && !Array.isArray(externalPayload)
           ? (externalPayload as Record<string, unknown>)
           : {};
-      const externalData = Array.isArray(externalRecord.results)
-        ? externalRecord.results
+      const externalData = Array.isArray(externalRecord.navn)
+        ? externalRecord.navn
         : [];
       const mapped = externalData.flatMap((rawItem) => {
         if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) return [];
         const item = rawItem as Record<string, unknown>;
-        const coordinateCheck = validateCoordinates(item.latitude, item.longitude);
+        const point =
+          item.representasjonspunkt && typeof item.representasjonspunkt === 'object'
+            ? (item.representasjonspunkt as Record<string, unknown>)
+            : {};
+        const coordinateCheck = validateCoordinates(point.nord, point['øst']);
         if (!coordinateCheck.valid) return [];
-        if (
-          typeof item.country_code === 'string' &&
-          item.country_code.toUpperCase() !== 'NO'
-        ) return [];
 
         const text = (value: unknown): string =>
           typeof value === 'string' ? sanitizeString(value, 120) : '';
-        const shortName = text(item.name);
+        const names = Array.isArray(item.stedsnavn) ? item.stedsnavn : [];
+        const preferredName = names.find((candidate) => {
+          if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+          const record = candidate as Record<string, unknown>;
+          return record.skrivemåtestatus === 'godkjent og prioritert';
+        }) || names[0];
+        const shortName = preferredName && typeof preferredName === 'object'
+          ? text((preferredName as Record<string, unknown>)['skrivemåte'])
+          : '';
         if (!shortName) return [];
+        const municipalities = Array.isArray(item.kommuner) ? item.kommuner : [];
+        const counties = Array.isArray(item.fylker) ? item.fylker : [];
+        const firstMunicipality = municipalities[0] && typeof municipalities[0] === 'object'
+          ? text((municipalities[0] as Record<string, unknown>).kommunenavn)
+          : '';
+        const firstCounty = counties[0] && typeof counties[0] === 'object'
+          ? text((counties[0] as Record<string, unknown>).fylkesnavn)
+          : '';
         const addressParts = [
-          text(item.admin2),
-          text(item.admin1),
-          text(item.country),
+          firstMunicipality,
+          firstCounty,
         ].filter((part, index, parts) =>
           Boolean(part) &&
           part.toLocaleLowerCase('nb-NO') !== shortName.toLocaleLowerCase('nb-NO') &&
@@ -195,7 +214,7 @@ export async function GET(req: NextRequest) {
           lon: coordinateCheck.longitude!,
           alt: null,
           address: fullName,
-          geocoding_source: 'Open-Meteo / GeoNames',
+          geocoding_source: 'Kartverket SSR',
         }];
       });
 

@@ -87,5 +87,30 @@ describe('forecast verification', () => {
       data_points: 0,
     });
   });
-});
 
+  it('keeps non-MET runs out of MET accuracy statistics', () => {
+    const externalRun: ForecastRun = {
+      ...run,
+      id: 'run-external',
+      source: 'OTHER_PROVIDER',
+    };
+    const externalForecast: ForecastValue = {
+      ...forecast,
+      id: 'forecast-external',
+      forecast_run_id: externalRun.id,
+      temperature: 99,
+    };
+    const result = calculateForecastVerification(
+      [observation('actual', '2026-08-20T00:20:00Z', 'FROST_SN1', 11, 3)],
+      [forecast, externalForecast],
+      [run, externalRun],
+      [24],
+      new Date('2026-08-21T00:00:00Z')
+    );
+
+    expect(result.metrics[0].temp_mae).toBe(1);
+    expect(result.recentPairs).toHaveLength(1);
+    expect(result.availability.retained_forecast_runs).toBe(1);
+    expect(result.availability.note).toContain('bare MET Locationforecast');
+  });
+});

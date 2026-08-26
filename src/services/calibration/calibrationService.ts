@@ -1,5 +1,4 @@
 import { getDb } from '@/lib/db';
-import { WEATHER_CONFIG } from '@/lib/weatherConfig';
 import { formatNorwegianTime } from '@/lib/weatherUtils';
 import { isFreshMeasuredObservation, latestMeasuredWithElement } from '@/services/observations/observationQuality';
 import { MetForecastService } from '@/services/met/metForecastService';
@@ -26,10 +25,6 @@ const EMPTY_VALUES: BenchmarkValues = {
   wind_speed: null,
   precipitation: null,
 };
-
-function finiteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
 
 function rounded(value: number | null, digits = 1): number | null {
   if (value === null) return null;
@@ -61,42 +56,6 @@ function buildSuggestedOffsets(
 }
 
 export class CalibrationService {
-  public static async fetchOpenMeteoBenchmark(lat: number, lon: number): Promise<BenchmarkValues> {
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { ...EMPTY_VALUES };
-    try {
-      const params = new URLSearchParams({
-        latitude: String(lat),
-        longitude: String(lon),
-        current: 'temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,precipitation',
-        wind_speed_unit: 'ms',
-        timezone: 'UTC',
-      });
-      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, {
-        headers: { 'User-Agent': WEATHER_CONFIG.defaultUserAgent },
-        next: { revalidate: 300 },
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (!res.ok) return { ...EMPTY_VALUES };
-      const json = await res.json();
-      const current = json.current || {};
-      const units = json.current_units || {};
-      const windUnitIsMs = !units.wind_speed_10m || units.wind_speed_10m === 'm/s';
-      const pressureUnitIsHpa = !units.pressure_msl || ['hPa', 'mb'].includes(units.pressure_msl);
-
-      return {
-        temperature: rounded(finiteOrNull(current.temperature_2m)),
-        humidity: rounded(finiteOrNull(current.relative_humidity_2m), 0),
-        pressure: pressureUnitIsHpa ? rounded(finiteOrNull(current.pressure_msl)) : null,
-        wind_speed: windUnitIsMs ? rounded(finiteOrNull(current.wind_speed_10m)) : null,
-        precipitation: rounded(finiteOrNull(current.precipitation)),
-      };
-    } catch (err) {
-      console.warn('Open-Meteo benchmark fetch error:', err);
-      return { ...EMPTY_VALUES };
-    }
-  }
-
   public static applyCalibration(
     raw: BenchmarkValues & { wind_gust?: number | null },
     offsets: SensorCalibrationOffsets,
@@ -162,9 +121,14 @@ export class CalibrationService {
       console.warn('MET benchmark refresh failed:', error);
     }
 
-    const latestRun = db.getLatestForecastRun(location.id);
-    const runIsFresh = latestRun && now.getTime() - new Date(latestRun.retrieved_at).getTime() <= 6 * 60 * 60 * 1000;
-    const forecasts = runIsFresh ? db.getForecastValuesForRun(latestRun.id) : [];
+    const latestMetRun = db
+      .getForecastRuns(location.id)
+      .filter((run) => run.source === 'MET_LOCATIONFORECAST_2_0')
+      .sort((a, b) => b.retrieved_at.localeCompare(a.retrieved_at))[0];
+    const runIsFresh =
+      latestMetRun &&
+      now.getTime() - new Date(latestMetRun.retrieved_at).getTime() <= 6 * 60 * 60 * 1000;
+    const forecasts = runIsFresh ? db.getForecastValuesForRun(latestMetRun.id) : [];
     const yrForecast = [...forecasts]
       .filter((forecast) => Math.abs(new Date(forecast.valid_at).getTime() - now.getTime()) <= 90 * 60 * 1000)
       .sort(
@@ -181,13 +145,7 @@ export class CalibrationService {
           precipitation: yrForecast.precipitation,
         }
       : { ...EMPTY_VALUES };
-    const openMeteoValues = await this.fetchOpenMeteoBenchmark(location.latitude, location.longitude);
     const customSensorValues = { ...EMPTY_VALUES };
-    const nowFormatted = formatNorwegianTime(now, {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: timezone,
-    });
     const rawValues: BenchmarkValues = rawStationValues;
 
     const comparison = (
@@ -225,14 +183,7 @@ export class CalibrationService {
         'MET Locationforecast 2.0 (Yr)',
         'Numerisk værmodell',
         yrValues,
-        latestRun ? formatNorwegianTime(latestRun.retrieved_at, { hour: '2-digit', minute: '2-digit', timeZone: timezone }) : 'Ingen data'
-      ),
-      comparison(
-        'open_meteo',
-        'Open-Meteo',
-        'Global numerisk referanse',
-        openMeteoValues,
-        Object.values(openMeteoValues).some((value) => value !== null) ? nowFormatted : 'Ingen data'
+        latestMetRun ? formatNorwegianTime(latestMetRun.retrieved_at, { hour: '2-digit', minute: '2-digit', timeZone: timezone }) : 'Ingen data'
       ),
       comparison(
         'custom_sensor',

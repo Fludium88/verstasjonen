@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CalibrationService } from '../src/services/calibration/calibrationService';
 import { getDb } from '../src/lib/db';
-import { LocationCalibrationProfile } from '../src/types/calibration';
 
 describe('CalibrationService & Cross-Source Sensor Calibration', () => {
   const testLocId = 'loc_calibration_test';
@@ -58,7 +57,7 @@ describe('CalibrationService & Cross-Source Sensor Calibration', () => {
     expect(enabledResult.precipitation).toBe(4.2);
   });
 
-  it('generates multi-source calibration payload comparing station, Yr and Open-Meteo', async () => {
+  it('generates calibration payload comparing station, Yr and custom sensor', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
     const payload = await CalibrationService.getCalibrationPayload(testLocId);
 
@@ -68,16 +67,13 @@ describe('CalibrationService & Cross-Source Sensor Calibration', () => {
 
     const stationSrc = payload.comparisons.find((c) => c.source_id === 'frost_station');
     const yrSrc = payload.comparisons.find((c) => c.source_id === 'locationforecast');
-    const openMeteoSrc = payload.comparisons.find((c) => c.source_id === 'open_meteo');
 
     expect(stationSrc).toBeDefined();
     expect(yrSrc).toBeDefined();
-    expect(openMeteoSrc).toBeDefined();
 
     expect(payload.raw_station_values.temperature).toBeNull();
     expect(stationSrc?.delta_temp).toBeNull();
     expect(yrSrc?.delta_temp).toBeNull();
-    expect(openMeteoSrc?.temperature).toBeNull();
     expect(payload.comparisons.find((c) => c.source_id === 'custom_sensor')?.temperature).toBeNull();
     fetchMock.mockRestore();
   });
