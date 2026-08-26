@@ -458,6 +458,9 @@ export default function Home() {
   };
 
   const currentLocationRecord = dashboardData?.location || savedLocations.find((l) => l.id === currentLocationId);
+  const currentLocationCacheKey = currentLocationRecord
+    ? `${currentLocationRecord.id}:${Number(currentLocationRecord.latitude).toFixed(4)}:${Number(currentLocationRecord.longitude).toFixed(4)}`
+    : currentLocationId;
 
   return (
     <ErrorBoundary>
@@ -565,7 +568,7 @@ export default function Home() {
               )}
 
               {activeTab === 'forecast' && (
-                <ForecastView locationId={currentLocationId} />
+                <ForecastView locationId={currentLocationId} locationCacheKey={currentLocationCacheKey} />
               )}
 
               {activeTab === 'history' && (
@@ -583,6 +586,7 @@ export default function Home() {
               {activeTab === 'sources' && (
                 <DataSourcesView
                   locationId={currentLocationId}
+                  locationCacheKey={currentLocationCacheKey}
                   onRefresh={() => fetchDashboardData(currentLocationId)}
                   onNavigateToCalibration={() => setActiveTab('calibration')}
                 />

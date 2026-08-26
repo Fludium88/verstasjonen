@@ -129,6 +129,16 @@ export async function GET(req: NextRequest) {
       (forecast) => new Date(forecast.valid_at).getTime() >= nowMs
     );
 
+    if (futureValues.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Ingen fremtidige MET-prognosepunkter er tilgjengelige akkurat nå. Prøv igjen om litt.',
+        },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
     // 1. Next hours timeline (hourly)
     const hourlyItems = futureValues.slice(0, 48).map((f, idx) => {
       const forecastTimeMs = Date.parse(f.valid_at);

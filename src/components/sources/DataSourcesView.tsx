@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Radio,
   MapPin,
@@ -28,8 +28,10 @@ import {
 } from 'lucide-react';
 import { WeatherStation } from '@/types/weather';
 import { clearCachedWeatherHistory } from '@/lib/weatherHistoryStorage';
+import { isViewDataCacheFresh, readViewDataCache, writeViewDataCache } from '@/lib/viewDataCache';
 
 type StationWithDistance = WeatherStation & { distance_km: number; score?: number };
+const STATION_CACHE_MAX_AGE_MS = 24 * 60 * 60_000;
 
 interface StationRecommendationPayload {
   element: string;
@@ -40,12 +42,14 @@ interface StationRecommendationPayload {
 
 interface DataSourcesViewProps {
   locationId: string;
+  locationCacheKey: string;
   onRefresh: () => void;
   onNavigateToCalibration?: () => void;
 }
 
 export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
   locationId,
+  locationCacheKey,
   onRefresh,
   onNavigateToCalibration,
 }) => {
@@ -60,24 +64,18 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
   const mappingAbortRef = useRef<AbortController | null>(null);
   const locationIdRef = useRef(locationId);
   locationIdRef.current = locationId;
+  const locationCacheKeyRef = useRef(locationCacheKey);
+  locationCacheKeyRef.current = locationCacheKey;
 
-  useEffect(() => {
-    setData(null);
-    void fetchStations(true);
-    return () => {
-      requestAbortRef.current?.abort();
-      mappingAbortRef.current?.abort();
-    };
-  }, [locationId]);
-
-  const fetchStations = async (discover = false) => {
+  const fetchStations = useCallback(async (discover = false, preserveData = false) => {
     requestAbortRef.current?.abort();
     const controller = new AbortController();
     requestAbortRef.current = controller;
     const requestedLocationId = locationId;
+    const requestedCacheKey = locationCacheKey;
     if (discover) {
       setDiscovering(true);
-    } else {
+    } else if (!preserveData) {
       setLoading(true);
     }
     setError(null);
@@ -87,7 +85,14 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
       const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
       if (res.ok) {
         const json = await res.json();
-        if (!controller.signal.aborted && requestedLocationId === locationIdRef.current) setData(json);
+        if (
+          !controller.signal.aborted &&
+          requestedLocationId === locationIdRef.current &&
+          requestedCacheKey === locationCacheKeyRef.current
+        ) {
+          setData(json);
+          writeViewDataCache('stations', requestedCacheKey, json);
+        }
       } else {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || 'Kunne ikke hente datakilder.');
@@ -97,12 +102,33 @@ export const DataSourcesView: React.FC<DataSourcesViewProps> = ({
       console.error('Failed to fetch weather stations:', e);
       setError(e?.message || 'Kunne ikke hente datakilder.');
     } finally {
-      if (!controller.signal.aborted && requestedLocationId === locationIdRef.current) {
+      if (
+        !controller.signal.aborted &&
+        requestedLocationId === locationIdRef.current &&
+        requestedCacheKey === locationCacheKeyRef.current
+      ) {
         setLoading(false);
         setDiscovering(false);
       }
     }
-  };
+  }, [locationId, locationCacheKey]);
+
+  useEffect(() => {
+    const cached = readViewDataCache<any>('stations', locationCacheKey, STATION_CACHE_MAX_AGE_MS);
+    if (cached) {
+      setData(cached.value);
+      setLoading(false);
+      setError(null);
+      if (!isViewDataCacheFresh(cached, STATION_CACHE_MAX_AGE_MS)) void fetchStations(true, true);
+    } else {
+      setData(null);
+      void fetchStations(true);
+    }
+    return () => {
+      requestAbortRef.current?.abort();
+      mappingAbortRef.current?.abort();
+    };
+  }, [fetchStations, locationCacheKey]);
 
   const handleStationChange = async (element: string, stationId: string) => {
     mappingAbortRef.current?.abort();

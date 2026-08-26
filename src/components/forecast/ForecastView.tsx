@@ -25,22 +25,29 @@ import {
 } from 'recharts';
 import { WeatherIcon } from '../common/WeatherIcon';
 import { formatNorwegianNumber } from '@/lib/weatherUtils';
+import { isViewDataCacheFresh, readViewDataCache, writeViewDataCache } from '@/lib/viewDataCache';
 
 interface ForecastViewProps {
   locationId: string;
+  locationCacheKey: string;
 }
 
-export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
+// Keep the last usable forecast across browser restarts, but refresh it silently
+// often enough that an open app does not present a day-old forecast as current.
+const FORECAST_CACHE_REFRESH_AFTER_MS = 30 * 60_000;
+const FORECAST_CACHE_RETENTION_MS = 24 * 60 * 60_000;
+
+export const ForecastView: React.FC<ForecastViewProps> = ({ locationId, locationCacheKey }) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
 
-  const fetchForecast = useCallback(async () => {
+  const fetchForecast = useCallback(async (background = false) => {
     requestAbortRef.current?.abort();
     const controller = new AbortController();
     requestAbortRef.current = controller;
-    setLoading(true);
+    if (!background) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/weather/forecast?locationId=${encodeURIComponent(locationId)}`, {
@@ -49,7 +56,13 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
       });
       if (res.ok) {
         const json = await res.json();
-        if (!controller.signal.aborted) setData(json);
+        if (!Array.isArray(json?.hourly) || json.hourly.length === 0) {
+          throw new Error('MET returnerte ingen fremtidige prognosepunkter for dette stedet.');
+        }
+        if (!controller.signal.aborted) {
+          setData(json);
+          writeViewDataCache('forecast', locationCacheKey, json);
+        }
       } else {
         const errJson = await res.json().catch(() => null);
         throw new Error(errJson?.error || 'Kunne ikke hente værprognoser fra tilgjengelige kilder.');
@@ -61,13 +74,21 @@ export const ForecastView: React.FC<ForecastViewProps> = ({ locationId }) => {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [locationId]);
+  }, [locationId, locationCacheKey]);
 
   useEffect(() => {
-    setData(null);
-    void fetchForecast();
+    const cached = readViewDataCache<any>('forecast', locationCacheKey, FORECAST_CACHE_RETENTION_MS);
+    if (cached) {
+      setData(cached.value);
+      setLoading(false);
+      setError(null);
+      if (!isViewDataCacheFresh(cached, FORECAST_CACHE_REFRESH_AFTER_MS)) void fetchForecast(true);
+    } else {
+      setData(null);
+      void fetchForecast();
+    }
     return () => requestAbortRef.current?.abort();
-  }, [fetchForecast]);
+  }, [fetchForecast, locationCacheKey]);
 
   if (loading && !data) {
     return (
